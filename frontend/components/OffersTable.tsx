@@ -130,7 +130,7 @@ export default function OffersTable() {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({ children }: { children?: React.ReactNode }) {
   return <th className="text-left font-medium px-3 py-2">{children}</th>;
 }
 function Td({ children, className = "", title }: { children: React.ReactNode; className?: string; title?: string }) {
