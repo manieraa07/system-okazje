@@ -24,6 +24,9 @@ export default function SettingsPage() {
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<number | null>(null);
   const [runInfo, setRunInfo] = useState<RunInfo | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [showDone, setShowDone] = useState(false);
+  const [doneMsg, setDoneMsg] = useState("");
 
   async function load() {
     const { data } = await sb.from("watchlist").select("*").order("name");
@@ -45,6 +48,12 @@ export default function SettingsPage() {
     loadLastRun();
   }, []);
 
+  useEffect(() => {
+    if (!running) { setElapsed(0); return; }
+    const t = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [running]);
+
   async function runScraper() {
     if (running) return;
     if (lastRun && Date.now() - lastRun < 60_000) {
@@ -52,6 +61,7 @@ export default function SettingsPage() {
       return;
     }
     setRunning(true);
+    setElapsed(0);
     try {
       const res = await fetch("/api/run-scraper", { method: "POST" });
       const data = await res.json();
@@ -71,6 +81,12 @@ export default function SettingsPage() {
             if (isNew && latest.finished_at) {
               clearInterval(poll);
               setRunning(false);
+              if (latest.error) {
+                setDoneMsg(`❌ Błąd: ${latest.error}`);
+              } else {
+                setDoneMsg(`✅ Gotowe! Znaleziono ${latest.offers_new} nowych ofert.`);
+              }
+              setShowDone(true);
             }
           }
           if (Date.now() - startTime > 180_000) {
@@ -86,6 +102,21 @@ export default function SettingsPage() {
       alert("Błąd połączenia");
       setRunning(false);
     }
+  }
+
+  function fmt(s: number) {
+    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const sec = (s % 60).toString().padStart(2, "0");
+    return `${m}:${sec}`;
+  }
+
+  function runStatus() {
+    if (running) return `⏳ Scraper działa… ${fmt(elapsed)}`;
+    if (!runInfo) return "Brak danych o ostatnim runie.";
+    const start = new Date(runInfo.started_at).toLocaleString("pl-PL");
+    if (!runInfo.finished_at) return `⏳ Trwa od ${start}…`;
+    if (runInfo.error) return `❌ Błąd (${start}): ${runInfo.error}`;
+    return `✅ ${start} — ${runInfo.offers_new} nowych ofert`;
   }
 
   async function add() {
@@ -116,17 +147,30 @@ export default function SettingsPage() {
     load();
   }
 
-  function runStatus() {
-    if (running) return "⏳ Scraper działa… (odświeżam co 10s)";
-    if (!runInfo) return "Brak danych o ostatnim runie.";
-    const start = new Date(runInfo.started_at).toLocaleString("pl-PL");
-    if (!runInfo.finished_at) return `⏳ Trwa od ${start}…`;
-    if (runInfo.error) return `❌ Błąd (${start}): ${runInfo.error}`;
-    return `✅ ${start} — ${runInfo.offers_new} nowych ofert`;
-  }
-
   return (
     <div className="space-y-8">
+
+      {showDone && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <p className="text-lg font-semibold">{doneMsg}</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => { setShowDone(false); window.location.href = "/"; }}
+                className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-medium"
+              >
+                Zobacz oferty
+              </button>
+              <button
+                onClick={() => setShowDone(false)}
+                className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded text-sm"
+              >
+                Zostań tutaj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="flex items-center justify-between gap-4">
         <div>
@@ -138,7 +182,7 @@ export default function SettingsPage() {
           disabled={running}
           className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 rounded text-sm font-medium whitespace-nowrap"
         >
-          {running ? "⏳ Trwa…" : "▶ Odpal teraz"}
+          {running ? `⏳ ${fmt(elapsed)}` : "▶ Odpal teraz"}
         </button>
       </section>
 
