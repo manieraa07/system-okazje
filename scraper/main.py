@@ -12,7 +12,7 @@ from db import (
     get_client, get_active_watchlist, offer_exists,
     insert_offer, update_offer, log_run, finish_run,
 )
-from sources import olx, allegro
+from sources import olx, allegro, vinted
 from filters import (
     matches_keywords, is_accessory_by_title,
     is_game_or_peripheral, price_sanity_check,
@@ -52,6 +52,10 @@ def process_watchlist_item(sb, item: dict) -> dict:
             raw += allegro.search(q, MAX_OFFERS_PER_ITEM)
         except Exception as e:
             print(f"[allegro] {q!r}: {e}")
+        try:
+            raw += vinted.search(q, MAX_OFFERS_PER_ITEM)
+        except Exception as e:
+            print(f"[vinted] {q!r}: {e}")
 
     seen_keys: set[tuple[str, str]] = set()
     unique: list[dict] = []
@@ -85,12 +89,10 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 _save_rejected(sb, offer, item, "accessory_in_title")
                 continue
 
-            # 4a) gra / akcesorium po rozszerzonej liście słów
             if is_game_or_peripheral(offer["title"]):
                 _save_rejected(sb, offer, item, "game_or_peripheral")
                 continue
 
-            # 4b) sanity-check ceny vs wartość rynkowa
             if not price_sanity_check(offer["price"], float(item.get("market_value") or 0), offer["title"]):
                 _save_rejected(sb, offer, item, "price_too_low")
                 continue
@@ -196,7 +198,7 @@ def main() -> int:
 
     total = {"seen": 0, "new": 0, "analyzed": 0, "tokens": 0}
     for item in watchlist:
-        run_id = log_run(sb, watchlist_id=item["id"], platform="olx+allegro")
+        run_id = log_run(sb, watchlist_id=item["id"], platform="olx+allegro+vinted")
         try:
             s = process_watchlist_item(sb, item)
             finish_run(sb, run_id,
