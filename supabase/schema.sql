@@ -42,7 +42,7 @@ create table if not exists offers (
   location          text,
   posted_at         timestamptz,              -- data dodania na platformie
   -- Analiza Claude
-  watchlist_id      uuid references watchlist(id) on delete set null,
+  watchlist_id      uuid references watchlist(id) on delete cascade,
   matched_item      text,                     -- "PS5" (co Claude rozpoznał)
   is_real_item      boolean,                  -- false = akcesorium/część
   is_urgent         boolean default false,    -- "wyprowadzka", "pilne", "na dziś"
