@@ -14,7 +14,6 @@ export default function OffersTable() {
   const [rows, setRows] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // filtry
   const [q, setQ] = useState("");
   const [platform, setPlatform] = useState<"all" | "olx" | "allegro">("all");
   const [color, setColor] = useState<"all" | "green" | "yellow" | "gray">("all");
@@ -28,6 +27,7 @@ export default function OffersTable() {
       const { data, error } = await sb
         .from("offers_view")
         .select("*")
+        .eq("active", true)
         .order("scraped_at", { ascending: false })
         .limit(500);
       if (!cancelled) {
@@ -105,35 +105,3 @@ export default function OffersTable() {
             {loading && <tr><td colSpan={9} className="p-6 text-center text-zinc-400">Ładowanie…</td></tr>}
             {!loading && filtered.map(r => (
               <tr key={r.id}
-                  onClick={() => window.open(r.url, "_blank", "noopener")}
-                  className={`cursor-pointer border-t border-white/5 ${ROW_COLOR[r.deal_color]}`}>
-                <Td className="max-w-[28ch] truncate" title={r.title}>{r.title}</Td>
-                <Td>{r.matched_item || r.watchlist_name}</Td>
-                <Td className="font-mono">{fmt(r.price)} zł</Td>
-                <Td className="font-mono text-zinc-400">{r.market_value ? `${fmt(r.market_value)} zł` : "—"}</Td>
-                <Td className="font-mono">{r.margin_pct != null ? `${r.margin_pct.toFixed(0)}%` : "—"}</Td>
-                <Td className="uppercase text-xs">{r.platform}</Td>
-                <Td>
-                  {r.is_urgent && <span className="px-1.5 py-0.5 rounded bg-red-900/60 text-red-200 text-xs mr-1">🔥 pilne</span>}
-                  {r.is_bundle && <span className="px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 text-xs">📦 bundle</span>}
-                </Td>
-                <Td className="text-xs text-zinc-400">{new Date(r.scraped_at).toLocaleString("pl-PL")}</Td>
-                <Td className="max-w-[40ch] truncate text-zinc-300" title={r.short_description || ""}>
-                  {r.short_description || "—"}
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function Th({ children }: { children?: React.ReactNode }) {
-  return <th className="text-left font-medium px-3 py-2">{children}</th>;
-}
-function Td({ children, className = "", title }: { children: React.ReactNode; className?: string; title?: string }) {
-  return <td className={`px-3 py-2 align-top ${className}`} title={title}>{children}</td>;
-}
-function fmt(n: number) { return new Intl.NumberFormat("pl-PL").format(n); }
