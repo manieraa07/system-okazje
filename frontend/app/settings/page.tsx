@@ -80,7 +80,7 @@ export default function SettingsPage() {
           if (pollData && pollData.length > 0) {
             const latest = pollData[0] as RunInfo;
             setRunInfo(latest);
-          const isNew = new Date(latest.started_at).getTime() > startTime - 120_000;
+          const isNew = new Date(latest.started_at).getTime() > startTime - 60_000;
             if (isNew && latest.finished_at) {
               clearInterval(poll);
               setRunning(false);
