@@ -9,6 +9,13 @@ const EMPTY: Omit<WatchItem, "id"> = {
   good_margin_pct: 30, ok_margin_pct: 15, active: true,
 };
 
+interface RunInfo {
+  started_at: string;
+  finished_at: string | null;
+  offers_new: number;
+  error: string | null;
+}
+
 export default function SettingsPage() {
   const sb = supabaseBrowser();
   const [items, setItems] = useState<WatchItem[]>([]);
@@ -16,13 +23,28 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<number | null>(null);
+  const [runInfo, setRunInfo] = useState<RunInfo | null>(null);
 
   async function load() {
     const { data } = await sb.from("watchlist").select("*").order("name");
     setItems((data || []) as WatchItem[]);
     setLoading(false);
   }
-  useEffect(() => { load(); }, []);
+
+  async function loadLastRun() {
+    const { data } = await sb
+      .from("scraper_runs")
+      .select("started_at, finished_at, offers_new, error")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .single();
+    if (data) setRunInfo(data as RunInfo);
+  }
+
+  useEffect(() => {
+    load();
+    loadLastRun();
+  }, []);
 
   async function runScraper() {
     if (running) return;
@@ -36,7 +58,10 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.ok) {
         setLastRun(Date.now());
-        alert("Scraper uruchomiony!");
+        alert("Scraper uruchomiony! Wyniki pojawią się za ~2 minuty.");
+        setTimeout(loadLastRun, 30_000);
+        setTimeout(loadLastRun, 90_000);
+        setTimeout(loadLastRun, 150_000);
       } else {
         alert("Błąd: " + data.error);
       }
@@ -73,15 +98,26 @@ export default function SettingsPage() {
     load();
   }
 
+  function runStatus() {
+    if (!runInfo) return "Brak danych o ostatnim runie.";
+    const start = new Date(runInfo.started_at).toLocaleString("pl-PL");
+    if (!runInfo.finished_at) return `⏳ Trwa od ${start}…`;
+    if (runInfo.error) return `❌ Błąd (${start}): ${runInfo.error}`;
+    return `✅ ${start} — ${runInfo.offers_new} nowych ofert`;
+  }
+
   return (
     <div className="space-y-8">
 
-      <section className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Ustawienia</h1>
+      <section className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">Ustawienia</h1>
+          <p className="text-xs text-zinc-400 mt-1">{runStatus()}</p>
+        </div>
         <button
           onClick={runScraper}
           disabled={running}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 rounded text-sm font-medium"
+          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 rounded text-sm font-medium whitespace-nowrap"
         >
           {running ? "Uruchamianie…" : "▶ Odpal teraz"}
         </button>
