@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const auth = req.headers.get("authorization");
   const password = process.env.SITE_PASSWORD;
-
   if (!password) return NextResponse.next();
 
-  if (auth) {
-    const [, encoded] = auth.split(" ");
-    const decoded = Buffer.from(encoded, "base64").toString("utf-8");
-    const [, pass] = decoded.split(":");
-    if (pass === password) return NextResponse.next();
+  // Przepuść stronę logowania i API auth
+  const { pathname } = req.nextUrl;
+  if (pathname === "/login" || pathname.startsWith("/api/auth")) {
+    return NextResponse.next();
   }
 
-  return new NextResponse("Unauthorized", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Okazje"' },
-  });
+  // Sprawdź ciasteczko sesji
+  const session = req.cookies.get("session")?.value;
+  if (session === password) return NextResponse.next();
+
+  // Przekieruj na /login
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  return NextResponse.redirect(url);
 }
 
 export const config = {
