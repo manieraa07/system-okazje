@@ -140,7 +140,8 @@ export default function SettingsPage() {
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+   function Th({ children }: { children?: React.ReactNode })
+ {
   return <th className="text-left font-medium px-3 py-2">{children}</th>;
 }
 function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
