@@ -36,7 +36,7 @@ export default function SettingsPage() {
       .from("scraper_runs")
       .select("started_at, finished_at, offers_new, error")
       .order("started_at", { ascending: false })
-.limit(1);
+      .limit(1);
     if (data && data.length > 0) setRunInfo(data[0] as RunInfo);
   }
 
@@ -59,16 +59,16 @@ export default function SettingsPage() {
         setLastRun(Date.now());
         const startTime = Date.now();
         const poll = setInterval(async () => {
-          const { data: runData } = await sb
+          const { data: pollData } = await sb
             .from("scraper_runs")
             .select("started_at, finished_at, offers_new, error")
             .order("started_at", { ascending: false })
-            .limit(1)
-            .single();
-          if (runData) {
-            setRunInfo(runData as RunInfo);
-            const isNew = new Date(runData.started_at).getTime() > startTime - 30_000;
-            if (isNew && runData.finished_at) {
+            .limit(1);
+          if (pollData && pollData.length > 0) {
+            const latest = pollData[0] as RunInfo;
+            setRunInfo(latest);
+            const isNew = new Date(latest.started_at).getTime() > startTime - 30_000;
+            if (isNew && latest.finished_at) {
               clearInterval(poll);
               setRunning(false);
             }
