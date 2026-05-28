@@ -14,6 +14,8 @@ export default function SettingsPage() {
   const [items, setItems] = useState<WatchItem[]>([]);
   const [draft, setDraft] = useState<Omit<WatchItem, "id">>(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [lastRun, setLastRun] = useState<number | null>(null);
 
   async function load() {
     const { data } = await sb.from("watchlist").select("*").order("name");
@@ -21,6 +23,27 @@ export default function SettingsPage() {
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+
+  async function runScraper() {
+    if (running) return;
+    if (lastRun && Date.now() - lastRun < 60_000) {
+      alert("Poczekaj 60 sekund przed kolejnym uruchomieniem.");
+      return;
+    }
+    setRunning(true);
+    try {
+      const res = await fetch("/api/run-scraper", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setLastRun(Date.now());
+        alert("Scraper uruchomiony!");
+      } else {
+        alert("Błąd: " + data.error);
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
 
   async function add() {
     if (!draft.name.trim() || !draft.market_value) return;
@@ -52,8 +75,20 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
+
+      <section className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Ustawienia</h1>
+        <button
+          onClick={runScraper}
+          disabled={running}
+          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 rounded text-sm font-medium"
+        >
+          {running ? "Uruchamianie…" : "▶ Odpal teraz"}
+        </button>
+      </section>
+
       <section>
-        <h1 className="text-xl font-semibold mb-3">Dodaj przedmiot</h1>
+        <h2 className="text-lg font-semibold mb-3">Dodaj przedmiot</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-zinc-900/50 border border-white/10 rounded-lg p-4">
           <Input label="Nazwa (np. PS5)" value={draft.name}
                  onChange={v => setDraft({ ...draft, name: v })} />
@@ -140,8 +175,7 @@ export default function SettingsPage() {
   );
 }
 
-   function Th({ children }: { children?: React.ReactNode })
- {
+function Th({ children }: { children?: React.ReactNode }) {
   return <th className="text-left font-medium px-3 py-2">{children}</th>;
 }
 function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
