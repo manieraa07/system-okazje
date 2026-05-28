@@ -36,9 +36,8 @@ export default function SettingsPage() {
       .from("scraper_runs")
       .select("started_at, finished_at, offers_new, error")
       .order("started_at", { ascending: false })
-      .limit(1)
-      .single();
-    if (data) setRunInfo(data as RunInfo);
+.limit(1);
+    if (data && data.length > 0) setRunInfo(data[0] as RunInfo);
   }
 
   useEffect(() => {
