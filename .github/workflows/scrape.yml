@@ -1,0 +1,39 @@
+name: Scrape OLX + Allegro
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # co godzinę, 7. minuta (rozprasza obciążenie)
+  workflow_dispatch: {}    # ręczne uruchomienie z UI
+
+concurrency:
+  group: scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: scraper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: scraper/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY:  ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}  # opcjonalne — jeśli brak, scraper leci w trybie STUB
+          USE_CLAUDE:            "1"  # ustaw "0" aby wymusić tryb bez Claude
+          ALLEGRO_CLIENT_ID:     ${{ secrets.ALLEGRO_CLIENT_ID }}
+          ALLEGRO_CLIENT_SECRET: ${{ secrets.ALLEGRO_CLIENT_SECRET }}
+          MAX_OFFERS_PER_ITEM:   "40"
+        run: python main.py

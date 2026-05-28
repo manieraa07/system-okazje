@@ -1,0 +1,8 @@
+# anthropic>=0.39.0   # odkomentuj gdy dorzucisz klucz Claude
+supabase>=2.7.0
+httpx>=0.27.0
+beautifulsoup4>=4.12.0
+lxml>=5.2.0
+python-dotenv>=1.0.0
+tenacity>=8.5.0
+rapidfuzz>=3.9.0
