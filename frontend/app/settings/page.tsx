@@ -25,7 +25,8 @@ export default function SettingsPage() {
   const [lastRun, setLastRun] = useState<number | null>(null);
   const [runInfo, setRunInfo] = useState<RunInfo | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [showDone, setShowDone] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupDone, setPopupDone] = useState(false);
   const [doneMsg, setDoneMsg] = useState("");
 
   async function load() {
@@ -62,6 +63,8 @@ export default function SettingsPage() {
     }
     setRunning(true);
     setElapsed(0);
+    setShowPopup(true);
+    setPopupDone(false);
     try {
       const res = await fetch("/api/run-scraper", { method: "POST" });
       const data = await res.json();
@@ -81,26 +84,30 @@ export default function SettingsPage() {
             if (isNew && latest.finished_at) {
               clearInterval(poll);
               setRunning(false);
+              setPopupDone(true);
               if (latest.error) {
                 setDoneMsg(`❌ Błąd: ${latest.error}`);
               } else {
                 setDoneMsg(`✅ Gotowe! Znaleziono ${latest.offers_new} nowych ofert.`);
               }
-              setShowDone(true);
             }
           }
-          if (Date.now() - startTime > 180_000) {
+          if (Date.now() - startTime > 300_000) {
             clearInterval(poll);
             setRunning(false);
+            setPopupDone(true);
+            setDoneMsg("⏱️ Timeout — sprawdź Actions na GitHubie.");
           }
-        }, 10_000);
+        }, 5_000);
       } else {
         alert("Błąd: " + data.error);
         setRunning(false);
+        setShowPopup(false);
       }
     } catch {
       alert("Błąd połączenia");
       setRunning(false);
+      setShowPopup(false);
     }
   }
 
@@ -150,24 +157,42 @@ export default function SettingsPage() {
   return (
     <div className="space-y-8">
 
-      {showDone && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-zinc-900 border border-white/10 rounded-xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl">
-            <p className="text-lg font-semibold">{doneMsg}</p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => { setShowDone(false); window.location.href = "/"; }}
-                className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-sm font-medium"
-              >
-                Zobacz oferty
-              </button>
-              <button
-                onClick={() => setShowDone(false)}
-                className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded text-sm"
-              >
-                Zostań tutaj
-              </button>
-            </div>
+      {showPopup && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 max-w-sm w-full text-center space-y-6 shadow-2xl">
+            {!popupDone ? (
+              <>
+                <div className="text-5xl font-mono font-bold text-blue-400">{fmt(elapsed)}</div>
+                <p className="text-zinc-300 text-sm">Scraper działa… sprawdzam co 5 sekund.</p>
+                <div className="w-full bg-zinc-800 rounded-full h-1.5">
+                  <div
+                    className="bg-blue-500 h-1.5 rounded-full transition-all duration-1000"
+                    style={{ width: `${Math.min((elapsed / 120) * 100, 95)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-zinc-500">Nie zamykaj tego okna.</p>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl">{doneMsg.startsWith("✅") ? "✅" : doneMsg.startsWith("❌") ? "❌" : "⏱️"}</div>
+                <p className="text-zinc-100 font-semibold">{doneMsg.replace(/^[✅❌⏱️]\s*/, "")}</p>
+                <p className="text-xs text-zinc-400">Czas: {fmt(elapsed)}</p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => { setShowPopup(false); window.location.href = "/"; }}
+                    className="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-lg text-sm font-medium"
+                  >
+                    Zobacz oferty →
+                  </button>
+                  <button
+                    onClick={() => setShowPopup(false)}
+                    className="bg-zinc-700 hover:bg-zinc-600 px-5 py-2 rounded-lg text-sm"
+                  >
+                    Zostań
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
