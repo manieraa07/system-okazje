@@ -1,11 +1,4 @@
-"""Orchestrator scrapera.
-
-Dla każdej pozycji w watchlist:
-  1. Pobierz oferty z OLX i Allegro.
-  2. Wstępne filtry (firma, wysyłka, akcesoria po słowach z watchlist).
-  3. Dla nowych ofert pobierz opis (OLX) i wyślij do Claude.
-  4. Oblicz marżę, zapisz do `offers`.
-"""
+"""Orchestrator scrapera."""
 from __future__ import annotations
 import os
 import sys
@@ -22,13 +15,12 @@ from db import (
 from sources import olx, allegro
 from filters import (
     matches_keywords, is_accessory_by_title,
+    is_game_or_peripheral, price_sanity_check,
     detect_urgency, detect_bundle_hint, looks_like_business,
 )
 load_dotenv()
 MAX_OFFERS_PER_ITEM = int(os.environ.get("MAX_OFFERS_PER_ITEM", "40"))
 
-# Przełącznik Claude: jeśli brak klucza ANTHROPIC_API_KEY albo USE_CLAUDE=0,
-# używamy lokalnego stubu (analiza regułowa, bez AI).
 USE_CLAUDE = os.environ.get("USE_CLAUDE", "1") != "0" and bool(os.environ.get("ANTHROPIC_API_KEY"))
 if USE_CLAUDE:
     import analyzer
@@ -45,7 +37,6 @@ def compute_margin(market_value: float, price: float) -> float | None:
 
 
 def process_watchlist_item(sb, item: dict) -> dict:
-    """Zwraca statystyki dla jednego itemu."""
     stats = {"seen": 0, "new": 0, "analyzed": 0, "tokens": 0}
 
     queries = [item["name"]] + (item.get("keywords") or [])
@@ -62,7 +53,6 @@ def process_watchlist_item(sb, item: dict) -> dict:
         except Exception as e:
             print(f"[allegro] {q!r}: {e}")
 
-    # deduplikacja w pamięci (ten sam external_id z różnych zapytań)
     seen_keys: set[tuple[str, str]] = set()
     unique: list[dict] = []
     for o in raw:
@@ -77,11 +67,9 @@ def process_watchlist_item(sb, item: dict) -> dict:
     olx_client = httpx.Client(http2=True)
     try:
         for offer in unique:
-            # 1) duplikat w bazie?
             if offer_exists(sb, offer["platform"], offer["external_id"]):
                 continue
 
-            # 2) twarde wymagania: tylko osoby prywatne + wysyłka
             if offer.get("seller_type") == "business":
                 _save_rejected(sb, offer, item, "business_seller")
                 continue
@@ -89,26 +77,31 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 _save_rejected(sb, offer, item, "no_shipping")
                 continue
 
-            # 3) fuzzy match keywords w tytule (filtr przeciw szumom z fraz typu "Sony")
             if not matches_keywords(offer["title"], queries):
                 _save_rejected(sb, offer, item, "title_no_match")
                 continue
 
-            # 4) akcesorium po samym tytule? — bez wołania Claude
             if is_accessory_by_title(offer["title"], item.get("exclude_terms") or []):
                 _save_rejected(sb, offer, item, "accessory_in_title")
                 continue
 
-            # 5) pobierz opis (tylko OLX — Allegro listing nie ma; wystarczy tytuł)
+            # 4a) gra / akcesorium po rozszerzonej liście słów
+            if is_game_or_peripheral(offer["title"]):
+                _save_rejected(sb, offer, item, "game_or_peripheral")
+                continue
+
+            # 4b) sanity-check ceny vs wartość rynkowa
+            if not price_sanity_check(offer["price"], float(item.get("market_value") or 0), offer["title"]):
+                _save_rejected(sb, offer, item, "price_too_low")
+                continue
+
             if offer["platform"] == "olx" and not offer.get("description"):
                 offer["description"] = olx.fetch_description(olx_client, offer["url"])
 
-            # 6) heurystyka "firma" po opisie
             if looks_like_business(offer.get("seller_name"), offer.get("description")):
                 _save_rejected(sb, offer, item, "business_in_description")
                 continue
 
-            # 7) Claude — pełna analiza
             try:
                 analysis, tokens = analyzer.analyze(
                     title=offer["title"],
@@ -123,7 +116,6 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 print(f"[claude] {offer['url']}: {e}")
                 continue
 
-            # 8) finalna decyzja
             if not analysis.get("is_real_item"):
                 _save_rejected(sb, offer, item, "claude_not_real_item", analysis=analysis)
                 continue
