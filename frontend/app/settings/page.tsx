@@ -58,14 +58,33 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.ok) {
         setLastRun(Date.now());
-        alert("Scraper uruchomiony! Wyniki pojawią się za ~2 minuty.");
-        setTimeout(loadLastRun, 30_000);
-        setTimeout(loadLastRun, 90_000);
-        setTimeout(loadLastRun, 150_000);
+        const startTime = Date.now();
+        const poll = setInterval(async () => {
+          const { data: runData } = await sb
+            .from("scraper_runs")
+            .select("started_at, finished_at, offers_new, error")
+            .order("started_at", { ascending: false })
+            .limit(1)
+            .single();
+          if (runData) {
+            setRunInfo(runData as RunInfo);
+            const isNew = new Date(runData.started_at).getTime() > startTime - 30_000;
+            if (isNew && runData.finished_at) {
+              clearInterval(poll);
+              setRunning(false);
+            }
+          }
+          if (Date.now() - startTime > 180_000) {
+            clearInterval(poll);
+            setRunning(false);
+          }
+        }, 10_000);
       } else {
         alert("Błąd: " + data.error);
+        setRunning(false);
       }
-    } finally {
+    } catch {
+      alert("Błąd połączenia");
       setRunning(false);
     }
   }
@@ -99,6 +118,7 @@ export default function SettingsPage() {
   }
 
   function runStatus() {
+    if (running) return "⏳ Scraper działa… (odświeżam co 10s)";
     if (!runInfo) return "Brak danych o ostatnim runie.";
     const start = new Date(runInfo.started_at).toLocaleString("pl-PL");
     if (!runInfo.finished_at) return `⏳ Trwa od ${start}…`;
@@ -119,7 +139,7 @@ export default function SettingsPage() {
           disabled={running}
           className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4 py-2 rounded text-sm font-medium whitespace-nowrap"
         >
-          {running ? "Uruchamianie…" : "▶ Odpal teraz"}
+          {running ? "⏳ Trwa…" : "▶ Odpal teraz"}
         </button>
       </section>
 
