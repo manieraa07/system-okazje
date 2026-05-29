@@ -223,6 +223,12 @@ def main() -> int:
         print("Pusta watchlist — nic do roboty.")
         return 0
 
+    # Wyczyść wszystkie is_new przed nowym runem
+    try:
+        sb.table("offers").update({"is_new": False}).eq("is_new", True).execute()
+    except Exception as e:
+        print(f"[is_new reset] {e}")
+
     total = {"seen": 0, "new": 0, "analyzed": 0, "tokens": 0}
     for item in watchlist:
         run_id = log_run(sb, watchlist_id=item["id"], platform="olx+allegro+vinted")
