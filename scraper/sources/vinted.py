@@ -15,6 +15,15 @@ HEADERS = {
     ),
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "pl-PL,pl;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": "https://www.vinted.pl/",
+    "Origin": "https://www.vinted.pl",
+    "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
 }
 
 VINTED_EXCLUDE = {
@@ -40,6 +49,8 @@ def _get_session_cookie() -> str | None:
             page = context.new_page()
             page.goto(VINTED_BASE, wait_until="domcontentloaded", timeout=30000)
             page.wait_for_timeout(3000)
+            page.goto(f"{VINTED_BASE}/catalog", wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(2000)
             cookies = context.cookies()
             browser.close()
             for c in cookies:
