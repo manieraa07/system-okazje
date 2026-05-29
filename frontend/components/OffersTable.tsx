@@ -244,10 +244,10 @@ export default function OffersTable() {
                 <Td className="text-xs text-zinc-500 whitespace-nowrap">
                   {new Date(r.scraped_at).toLocaleString("pl-PL")}
                 </Td>
-                <Td className="max-w-xs">
+                <Td className="max-w-sm">
                   {r.note
-                    ? <span className="text-yellow-300 text-xs truncate block max-w-[36ch]" title={r.note}>{r.note}</span>
-                    : <span className="text-zinc-500 text-xs truncate block max-w-[36ch]" title={r.short_description || ""}>{r.short_description || "—"}</span>
+                    ? <span className="text-yellow-300 text-xs block" title={r.note}>{r.note}</span>
+                    : <span className="text-zinc-500 text-xs truncate block max-w-[40ch]" title={r.short_description || ""}>{r.short_description || "—"}</span>
                   }
                 </Td>
                 <Td>
