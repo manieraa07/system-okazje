@@ -10,6 +10,9 @@ const ROW_COLOR: Record<Offer["deal_color"], string> = {
   gray:   "bg-zinc-800/40 hover:bg-zinc-800/60",
 };
 
+type SortKey = "title" | "price" | "margin_pct" | "scraped_at" | null;
+type SortDir = "asc" | "desc";
+
 export default function OffersTable() {
   const sb = supabaseBrowser();
   const [rows, setRows] = useState<Offer[]>([]);
@@ -18,6 +21,8 @@ export default function OffersTable() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [q, setQ] = useState("");
   const [platform, setPlatform] = useState<"all" | "olx" | "allegro" | "vinted">("all");
@@ -39,6 +44,16 @@ export default function OffersTable() {
   }
 
   useEffect(() => { loadRows(); }, []);
+
+  function handleSort(key: NonNullable<SortKey>) {
+    if (sortKey === key) {
+      if (sortDir === "desc") setSortDir("asc");
+      else { setSortKey(null); setSortDir("desc"); }
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
 
   async function hideOffer(id: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -79,7 +94,7 @@ export default function OffersTable() {
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const min = parseFloat(minMargin);
-    return activeSource.filter(r => {
+    let result = activeSource.filter(r => {
       if (platform !== "all" && r.platform !== platform) return false;
       if (color !== "all" && r.deal_color !== color) return false;
       if (onlyUrgent && !r.is_urgent) return false;
@@ -91,7 +106,19 @@ export default function OffersTable() {
       }
       return true;
     });
-  }, [activeSource, q, platform, color, onlyUrgent, onlyBundle, minMargin]);
+    if (sortKey) {
+      result = [...result].sort((a, b) => {
+        let av: any = a[sortKey];
+        let bv: any = b[sortKey];
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === "string") av = av.toLowerCase();
+        if (typeof bv === "string") bv = bv.toLowerCase();
+        return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+      });
+    }
+    return result;
+  }, [activeSource, q, platform, color, onlyUrgent, onlyBundle, minMargin, sortKey, sortDir]);
 
   return (
     <div className="space-y-4">
@@ -191,14 +218,14 @@ export default function OffersTable() {
         <table className="min-w-full text-sm">
           <thead className="bg-zinc-900/80 text-zinc-400 text-xs uppercase tracking-wide">
             <tr>
-              <Th>Tytuł</Th>
+              <SortTh label="Tytuł" sortKey="title" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th>Przedmiot</Th>
-              <Th>Cena</Th>
+              <SortTh label="Cena" sortKey="price" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th>Rynkowa</Th>
-              <Th>Marża</Th>
+              <SortTh label="Marża" sortKey="margin_pct" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th>Platforma</Th>
               <Th>Tagi</Th>
-              <Th>Dodano</Th>
+              <SortTh label="Dodano" sortKey="scraped_at" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th>Opis / Notatka</Th>
               <Th></Th>
             </tr>
@@ -294,6 +321,29 @@ export default function OffersTable() {
         </table>
       </div>
     </div>
+  );
+}
+
+function SortTh({ label, sortKey, current, dir, onSort }: {
+  label: string;
+  sortKey: NonNullable<SortKey>;
+  current: SortKey;
+  dir: SortDir;
+  onSort: (k: NonNullable<SortKey>) => void;
+}) {
+  const active = current === sortKey;
+  return (
+    <th
+      className="text-left px-4 py-3 cursor-pointer select-none hover:text-white group/sort"
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <span className={`transition-opacity text-xs ${active ? "opacity-100" : "opacity-0 group-hover/sort:opacity-40"}`}>
+          {active ? (dir === "desc" ? "↓" : "↑") : "↕"}
+        </span>
+      </span>
+    </th>
   );
 }
 
