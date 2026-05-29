@@ -55,6 +55,11 @@ export default function OffersTable() {
     e.stopPropagation();
     await sb.from("offers").update({ is_favorite: !current }).eq("id", id);
     setRows(prev => prev.map(r => r.id === id ? { ...r, is_favorite: !current } : r));
+    if (!current) {
+      const row = rows.find(r => r.id === id);
+      setNoteText(row?.note || "");
+      setEditingNote(id);
+    }
   }
 
   async function saveNote(id: string) {
@@ -63,8 +68,8 @@ export default function OffersTable() {
     setEditingNote(null);
   }
 
-  const visible = useMemo(() => rows.filter(r => r.status !== "hidden" && !r.is_favorite), [rows]);
-  const favorites = useMemo(() => rows.filter(r => r.is_favorite), [rows]);
+  const visible = useMemo(() => rows.filter(r => r.status !== "hidden"), [rows]);
+  const favorites = useMemo(() => rows.filter(r => r.is_favorite && r.status !== "hidden"), [rows]);
   const hidden = useMemo(() => rows.filter(r => r.status === "hidden"), [rows]);
 
   const activeSource = showHidden ? hidden : showFavorites ? favorites : visible;
@@ -86,31 +91,29 @@ export default function OffersTable() {
     });
   }, [activeSource, q, platform, color, onlyUrgent, onlyBundle, minMargin]);
 
-  const colSpan = 11;
-
   return (
     <div className="space-y-4">
 
       {editingNote && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
-            <h2 className="text-lg font-semibold">Notatka</h2>
+            <h2 className="text-lg font-semibold">📝 Notatka do ulubionej</h2>
             <textarea
               value={noteText}
               onChange={e => setNoteText(e.target.value)}
               rows={4}
               className="w-full bg-zinc-950 border border-white/10 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue-500"
-              placeholder="Wpisz notatkę…"
+              placeholder="Wpisz notatkę… (opcjonalne)"
               autoFocus
             />
             <div className="flex gap-3 justify-end">
               <button onClick={() => setEditingNote(null)}
                 className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded text-sm">
-                Anuluj
+                Pomiń
               </button>
               <button onClick={() => saveNote(editingNote)}
                 className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-sm font-medium">
-                Zapisz
+                Zapisz notatkę
               </button>
             </div>
           </div>
@@ -182,7 +185,7 @@ export default function OffersTable() {
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={colSpan} className="p-6 text-center text-zinc-400">Ładowanie…</td></tr>}
+            {loading && <tr><td colSpan={11} className="p-6 text-center text-zinc-400">Ładowanie…</td></tr>}
             {!loading && filtered.map(r => (
               <tr key={r.id}
                   onClick={() => window.open(r.url, "_blank", "noopener")}
@@ -201,7 +204,7 @@ export default function OffersTable() {
                 <Td className="text-xs text-zinc-400">{new Date(r.scraped_at).toLocaleString("pl-PL")}</Td>
                 <Td className="max-w-[40ch] truncate text-zinc-300" title={r.note || r.short_description || ""}>
                   {r.note
-                    ? <span className="text-yellow-300" title={r.note}>📝 {r.note}</span>
+                    ? <span className="text-yellow-300">📝 {r.note}</span>
                     : r.short_description || "—"}
                 </Td>
                 <Td>
@@ -214,8 +217,8 @@ export default function OffersTable() {
                     {r.is_favorite && (
                       <button
                         onClick={e => { e.stopPropagation(); setEditingNote(r.id); setNoteText(r.note || ""); }}
-                        className="text-lg text-zinc-600 hover:text-yellow-300"
-                        title="Dodaj notatkę"
+                        className="text-lg text-zinc-500 hover:text-yellow-300"
+                        title="Edytuj notatkę"
                       >📝</button>
                     )}
                   </div>
@@ -232,7 +235,7 @@ export default function OffersTable() {
               </tr>
             ))}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={colSpan} className="p-6 text-center text-zinc-500">
+              <tr><td colSpan={11} className="p-6 text-center text-zinc-500">
                 {showHidden ? "Brak ukrytych ofert." : showFavorites ? "Brak ulubionych ofert." : "Brak ofert."}
               </td></tr>
             )}
