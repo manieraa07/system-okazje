@@ -15,7 +15,7 @@ export default function OffersTable() {
   const [loading, setLoading] = useState(true);
 
   const [q, setQ] = useState("");
-  const [platform, setPlatform] = useState<"all" | "olx" | "allegro">("all");
+  const [platform, setPlatform] = useState<"all" | "olx" | "allegro" | "vinted">("all");
   const [color, setColor] = useState<"all" | "green" | "yellow" | "gray">("all");
   const [onlyUrgent, setOnlyUrgent] = useState(false);
   const [onlyBundle, setOnlyBundle] = useState(false);
@@ -69,6 +69,7 @@ export default function OffersTable() {
           <option value="all">Wszystkie platformy</option>
           <option value="olx">OLX</option>
           <option value="allegro">Allegro</option>
+          <option value="vinted">Vinted</option>
         </select>
         <select value={color} onChange={e => setColor(e.target.value as any)}
                 className="bg-zinc-900 border border-white/10 rounded px-2 py-2 text-sm">
