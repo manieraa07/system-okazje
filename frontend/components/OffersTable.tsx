@@ -211,7 +211,7 @@ export default function OffersTable() {
               <tr
                 key={r.id}
                 onClick={() => window.open(r.url, "_blank", "noopener")}
-                className={`cursor-pointer border-t border-white/5 transition-colors ${ROW_COLOR[r.deal_color]}`}
+                className={`group cursor-pointer border-t border-white/5 transition-colors ${ROW_COLOR[r.deal_color]}`}
               >
                 <Td className="max-w-xs">
                   <span className="font-medium truncate block max-w-[26ch]" title={r.title}>{r.title}</span>
@@ -248,7 +248,7 @@ export default function OffersTable() {
                 </Td>
                 <Td className="max-w-sm">
                   {r.note
-                    ? <span className="text-yellow-300 text-xs truncate block max-w-[40ch]" title={r.note}>{r.note}</span>
+                    ? <span className="text-yellow-300 text-xs block max-w-[40ch] overflow-hidden group-hover:overflow-visible group-hover:whitespace-normal whitespace-nowrap" title={r.note}>{r.note}</span>
                     : <span className="text-zinc-500 text-xs truncate block max-w-[40ch]" title={r.short_description || ""}>{r.short_description || "—"}</span>
                   }
                 </Td>
