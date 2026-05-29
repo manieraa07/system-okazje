@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [lastRun, setLastRun] = useState<number | null>(null);
   const [runInfo, setRunInfo] = useState<RunInfo | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [finalElapsed, setFinalElapsed] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
   const [popupDone, setPopupDone] = useState(false);
   const [doneMsg, setDoneMsg] = useState("");
@@ -50,7 +51,7 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (!running) { setElapsed(0); return; }
+    if (!running) return;
     const t = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(t);
   }, [running]);
@@ -63,6 +64,7 @@ export default function SettingsPage() {
     }
     setRunning(true);
     setElapsed(0);
+    setFinalElapsed(0);
     setShowPopup(true);
     setPopupDone(false);
     try {
@@ -80,9 +82,10 @@ export default function SettingsPage() {
           if (pollData && pollData.length > 0) {
             const latest = pollData[0] as RunInfo;
             setRunInfo(latest);
-          const isNew = new Date(latest.started_at).getTime() > startTime - 10_000;
+            const isNew = new Date(latest.started_at).getTime() > startTime - 10_000;
             if (isNew && latest.finished_at) {
               clearInterval(poll);
+              setFinalElapsed(elapsed);
               setRunning(false);
               setPopupDone(true);
               if (latest.error) {
@@ -94,6 +97,7 @@ export default function SettingsPage() {
           }
           if (Date.now() - startTime > 300_000) {
             clearInterval(poll);
+            setFinalElapsed(elapsed);
             setRunning(false);
             setPopupDone(true);
             setDoneMsg("⏱️ Timeout — sprawdź Actions na GitHubie.");
@@ -176,7 +180,7 @@ export default function SettingsPage() {
               <>
                 <div className="text-4xl">{doneMsg.startsWith("✅") ? "✅" : doneMsg.startsWith("❌") ? "❌" : "⏱️"}</div>
                 <p className="text-zinc-100 font-semibold">{doneMsg.replace(/^[✅❌⏱️]\s*/, "")}</p>
-                <p className="text-xs text-zinc-400">Czas: {fmt(elapsed)}</p>
+                <p className="text-xs text-zinc-400">Czas: {fmt(finalElapsed)}</p>
                 <div className="flex gap-3 justify-center">
                   <button
                     onClick={() => { setShowPopup(false); window.location.href = "/"; }}
