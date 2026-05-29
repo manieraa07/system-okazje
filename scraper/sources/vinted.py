@@ -1,8 +1,8 @@
-"""Scraper Vinted — używa publicznego API v2."""
+"""Scraper Vinted — używa Playwright do zdobycia sesji, potem requests do API."""
 from __future__ import annotations
 import time
 import requests
-from urllib.parse import quote
+from playwright.sync_api import sync_playwright
 
 VINTED_BASE = "https://www.vinted.pl"
 API_URL = f"{VINTED_BASE}/api/v2/catalog/items"
@@ -23,20 +23,41 @@ VINTED_EXCLUDE = {
     "naklejka", "sticker", "torba", "bag", "etui", "case",
 }
 
+_session_cookie: str | None = None
+
 
 def _get_session_cookie() -> str | None:
+    global _session_cookie
+    if _session_cookie:
+        return _session_cookie
     try:
-        r = requests.get(VINTED_BASE, headers=HEADERS, timeout=15)
-        return r.cookies.get("_vinted_fr_session")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=HEADERS["User-Agent"],
+                locale="pl-PL",
+            )
+            page = context.new_page()
+            page.goto(VINTED_BASE, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(3000)
+            cookies = context.cookies()
+            browser.close()
+            for c in cookies:
+                if c["name"] == "_vinted_fr_session":
+                    _session_cookie = c["value"]
+                    print("[vinted] sesja OK")
+                    return _session_cookie
+            print("[vinted] brak ciasteczka sesji po Playwright")
+            return None
     except Exception as e:
-        print(f"[vinted] błąd sesji: {e}")
+        print(f"[vinted] Playwright error: {e}")
         return None
 
 
 def search(query: str, max_offers: int = 40) -> list[dict]:
     session = _get_session_cookie()
     if not session:
-        print("[vinted] brak ciasteczka sesji — pomijam")
+        print("[vinted] brak sesji — pomijam")
         return []
 
     cookies = {"_vinted_fr_session": session}
@@ -59,12 +80,10 @@ def search(query: str, max_offers: int = 40) -> list[dict]:
                 timeout=20,
             )
             if r.status_code == 401:
-                print("[vinted] 401 — odświeżam sesję")
-                session = _get_session_cookie()
-                if not session:
-                    break
-                cookies = {"_vinted_fr_session": session}
-                continue
+                print("[vinted] 401 — sesja wygasła")
+                global _session_cookie
+                _session_cookie = None
+                break
             if r.status_code >= 400:
                 print(f"[vinted HTTP {r.status_code}] {query!r}")
                 break
@@ -84,7 +103,6 @@ def search(query: str, max_offers: int = 40) -> list[dict]:
                 if not oid or not title:
                     continue
 
-                # odfiltruj ubraniowe śmieci
                 title_low = title.lower()
                 if any(w in title_low for w in VINTED_EXCLUDE):
                     continue
@@ -110,7 +128,7 @@ def search(query: str, max_offers: int = 40) -> list[dict]:
                     "title": title,
                     "price": price,
                     "currency": "PLN",
-                    "shipping_available": True,  # Vinted zawsze ma wysyłkę
+                    "shipping_available": True,
                     "seller_type": "private",
                     "seller_name": user.get("login"),
                     "location": item.get("city") or "",
