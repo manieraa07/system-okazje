@@ -154,25 +154,17 @@ export default function OffersTable() {
           Bundle
         </label>
         <button
-          onClick={() => { setShowFavorites(true); setShowHidden(false); }}
+          onClick={() => { setShowFavorites(f => !f); setShowHidden(false); }}
           className={`px-3 py-2 rounded text-sm border ${showFavorites ? "bg-yellow-700/40 border-yellow-500/50 text-yellow-200" : "border-white/10 text-zinc-400 hover:text-white"}`}
         >
           ⭐ Ulubione ({favorites.length})
         </button>
         <button
-          onClick={() => { setShowHidden(true); setShowFavorites(false); }}
+          onClick={() => { setShowHidden(h => !h); setShowFavorites(false); }}
           className={`px-3 py-2 rounded text-sm border ${showHidden ? "bg-zinc-700 border-zinc-500 text-white" : "border-white/10 text-zinc-400 hover:text-white"}`}
         >
           👁 Ukryte ({hidden.length})
         </button>
-        {(showFavorites || showHidden) && (
-          <button
-            onClick={() => { setShowFavorites(false); setShowHidden(false); }}
-            className="px-3 py-2 rounded text-sm border border-white/10 text-zinc-400 hover:text-white"
-          >
-            ✕ Wróć
-          </button>
-        )}
         <span className="text-xs text-zinc-400 ml-auto">{filtered.length} / {activeSource.length}</span>
       </div>
 
