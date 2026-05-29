@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-
 let _browser: SupabaseClient | null = null;
 export function supabaseBrowser(): SupabaseClient {
   if (_browser) return _browser;
@@ -10,10 +9,9 @@ export function supabaseBrowser(): SupabaseClient {
   );
   return _browser;
 }
-
 export type Offer = {
   id: string;
-  platform: "olx" | "allegro";
+  platform: "olx" | "allegro" | "vinted";
   url: string;
   title: string;
   price: number;
@@ -23,11 +21,12 @@ export type Offer = {
   matched_item: string | null;
   is_urgent: boolean;
   is_bundle: boolean;
+  is_new: boolean;
   short_description: string | null;
   scraped_at: string;
   deal_color: "green" | "yellow" | "gray";
+  active: boolean;
 };
-
 export type WatchItem = {
   id: string;
   name: string;
