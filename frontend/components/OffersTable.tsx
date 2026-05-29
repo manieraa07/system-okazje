@@ -14,6 +14,9 @@ export default function OffersTable() {
   const [rows, setRows] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
 
   const [q, setQ] = useState("");
   const [platform, setPlatform] = useState<"all" | "olx" | "allegro" | "vinted">("all");
@@ -34,9 +37,7 @@ export default function OffersTable() {
     setLoading(false);
   }
 
-  useEffect(() => {
-    loadRows();
-  }, []);
+  useEffect(() => { loadRows(); }, []);
 
   async function hideOffer(id: string, e: React.MouseEvent) {
     e.stopPropagation();
@@ -50,29 +51,72 @@ export default function OffersTable() {
     setRows(prev => prev.map(r => r.id === id ? { ...r, status: "analyzed" } : r));
   }
 
-  const visible = useMemo(() => rows.filter(r => r.status !== "hidden"), [rows]);
+  async function toggleFavorite(id: string, current: boolean, e: React.MouseEvent) {
+    e.stopPropagation();
+    await sb.from("offers").update({ is_favorite: !current }).eq("id", id);
+    setRows(prev => prev.map(r => r.id === id ? { ...r, is_favorite: !current } : r));
+  }
+
+  async function saveNote(id: string) {
+    await sb.from("offers").update({ note: noteText || null }).eq("id", id);
+    setRows(prev => prev.map(r => r.id === id ? { ...r, note: noteText || null } : r));
+    setEditingNote(null);
+  }
+
+  const visible = useMemo(() => rows.filter(r => r.status !== "hidden" && !r.is_favorite), [rows]);
+  const favorites = useMemo(() => rows.filter(r => r.is_favorite), [rows]);
   const hidden = useMemo(() => rows.filter(r => r.status === "hidden"), [rows]);
 
+  const activeSource = showHidden ? hidden : showFavorites ? favorites : visible;
+
   const filtered = useMemo(() => {
-    const source = showHidden ? hidden : visible;
     const ql = q.trim().toLowerCase();
     const min = parseFloat(minMargin);
-    return source.filter(r => {
+    return activeSource.filter(r => {
       if (platform !== "all" && r.platform !== platform) return false;
       if (color !== "all" && r.deal_color !== color) return false;
       if (onlyUrgent && !r.is_urgent) return false;
       if (onlyBundle && !r.is_bundle) return false;
       if (!isNaN(min) && (r.margin_pct ?? -Infinity) < min) return false;
       if (ql) {
-        const hay = `${r.title} ${r.matched_item ?? ""} ${r.watchlist_name ?? ""} ${r.short_description ?? ""}`.toLowerCase();
+        const hay = `${r.title} ${r.matched_item ?? ""} ${r.watchlist_name ?? ""} ${r.short_description ?? ""} ${r.note ?? ""}`.toLowerCase();
         if (!hay.includes(ql)) return false;
       }
       return true;
     });
-  }, [rows, q, platform, color, onlyUrgent, onlyBundle, minMargin, showHidden, visible, hidden]);
+  }, [activeSource, q, platform, color, onlyUrgent, onlyBundle, minMargin]);
+
+  const colSpan = 11;
 
   return (
     <div className="space-y-4">
+
+      {editingNote && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
+            <h2 className="text-lg font-semibold">Notatka</h2>
+            <textarea
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              rows={4}
+              className="w-full bg-zinc-950 border border-white/10 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue-500"
+              placeholder="Wpisz notatkę…"
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setEditingNote(null)}
+                className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded text-sm">
+                Anuluj
+              </button>
+              <button onClick={() => saveNote(editingNote)}
+                className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-sm font-medium">
+                Zapisz
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 items-center">
         <input
           value={q} onChange={e => setQ(e.target.value)}
@@ -107,12 +151,26 @@ export default function OffersTable() {
           Bundle
         </label>
         <button
-          onClick={() => setShowHidden(h => !h)}
+          onClick={() => { setShowFavorites(true); setShowHidden(false); }}
+          className={`px-3 py-2 rounded text-sm border ${showFavorites ? "bg-yellow-700/40 border-yellow-500/50 text-yellow-200" : "border-white/10 text-zinc-400 hover:text-white"}`}
+        >
+          ⭐ Ulubione ({favorites.length})
+        </button>
+        <button
+          onClick={() => { setShowHidden(true); setShowFavorites(false); }}
           className={`px-3 py-2 rounded text-sm border ${showHidden ? "bg-zinc-700 border-zinc-500 text-white" : "border-white/10 text-zinc-400 hover:text-white"}`}
         >
-          {showHidden ? "👁 Ukryte" : `👁 Ukryte (${hidden.length})`}
+          👁 Ukryte ({hidden.length})
         </button>
-        <span className="text-xs text-zinc-400 ml-auto">{filtered.length} / {showHidden ? hidden.length : visible.length}</span>
+        {(showFavorites || showHidden) && (
+          <button
+            onClick={() => { setShowFavorites(false); setShowHidden(false); }}
+            className="px-3 py-2 rounded text-sm border border-white/10 text-zinc-400 hover:text-white"
+          >
+            ✕ Wróć
+          </button>
+        )}
+        <span className="text-xs text-zinc-400 ml-auto">{filtered.length} / {activeSource.length}</span>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-white/10">
@@ -120,11 +178,11 @@ export default function OffersTable() {
           <thead className="bg-zinc-900/80 text-zinc-300">
             <tr>
               <Th>Tytuł</Th><Th>Przedmiot</Th><Th>Cena</Th><Th>Rynkowa</Th>
-              <Th>Marża</Th><Th>Platforma</Th><Th>Pilność</Th><Th>Dodano</Th><Th>Opis</Th><Th></Th>
+              <Th>Marża</Th><Th>Platforma</Th><Th>Pilność</Th><Th>Dodano</Th><Th>Opis</Th><Th></Th><Th></Th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={10} className="p-6 text-center text-zinc-400">Ładowanie…</td></tr>}
+            {loading && <tr><td colSpan={colSpan} className="p-6 text-center text-zinc-400">Ładowanie…</td></tr>}
             {!loading && filtered.map(r => (
               <tr key={r.id}
                   onClick={() => window.open(r.url, "_blank", "noopener")}
@@ -141,29 +199,41 @@ export default function OffersTable() {
                   {r.is_bundle && <span className="px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 text-xs">📦 bundle</span>}
                 </Td>
                 <Td className="text-xs text-zinc-400">{new Date(r.scraped_at).toLocaleString("pl-PL")}</Td>
-                <Td className="max-w-[40ch] truncate text-zinc-300" title={r.short_description || ""}>
-                  {r.short_description || "—"}
+                <Td className="max-w-[40ch] truncate text-zinc-300" title={r.note || r.short_description || ""}>
+                  {r.note
+                    ? <span className="text-yellow-300" title={r.note}>📝 {r.note}</span>
+                    : r.short_description || "—"}
+                </Td>
+                <Td>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={e => toggleFavorite(r.id, r.is_favorite, e)}
+                      className={`text-lg ${r.is_favorite ? "text-yellow-400" : "text-zinc-600 hover:text-yellow-400"}`}
+                      title={r.is_favorite ? "Usuń z ulubionych" : "Dodaj do ulubionych"}
+                    >⭐</button>
+                    {r.is_favorite && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setEditingNote(r.id); setNoteText(r.note || ""); }}
+                        className="text-lg text-zinc-600 hover:text-yellow-300"
+                        title="Dodaj notatkę"
+                      >📝</button>
+                    )}
+                  </div>
                 </Td>
                 <Td>
                   {r.status === "hidden" ? (
-                    <button
-                      onClick={e => restoreOffer(r.id, e)}
-                      className="text-zinc-400 hover:text-white text-lg"
-                      title="Przywróć"
-                    >👁</button>
+                    <button onClick={e => restoreOffer(r.id, e)}
+                      className="text-zinc-400 hover:text-white text-lg" title="Przywróć">👁</button>
                   ) : (
-                    <button
-                      onClick={e => hideOffer(r.id, e)}
-                      className="text-zinc-600 hover:text-zinc-300 text-lg"
-                      title="Ukryj"
-                    >🙈</button>
+                    <button onClick={e => hideOffer(r.id, e)}
+                      className="text-zinc-600 hover:text-zinc-300 text-lg" title="Ukryj">🙈</button>
                   )}
                 </Td>
               </tr>
             ))}
             {!loading && filtered.length === 0 && (
-              <tr><td colSpan={10} className="p-6 text-center text-zinc-500">
-                {showHidden ? "Brak ukrytych ofert." : "Brak ofert."}
+              <tr><td colSpan={colSpan} className="p-6 text-center text-zinc-500">
+                {showHidden ? "Brak ukrytych ofert." : showFavorites ? "Brak ulubionych ofert." : "Brak ofert."}
               </td></tr>
             )}
           </tbody>
