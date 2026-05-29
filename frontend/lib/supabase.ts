@@ -27,6 +27,7 @@ export type Offer = {
   status: string;
   short_description: string | null;
   scraped_at: string;
+  posted_at: string | null;
   deal_color: "green" | "yellow" | "gray";
   active: boolean;
 };
