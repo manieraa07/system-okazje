@@ -10,7 +10,7 @@ const ROW_COLOR: Record<Offer["deal_color"], string> = {
   gray:   "bg-zinc-800/40 hover:bg-zinc-800/60",
 };
 
-type SortKey = "title" | "price" | "margin_pct" | "scraped_at" | null;
+type SortKey = "title" | "price" | "margin_pct" | "posted_at" | null;
 type SortDir = "asc" | "desc";
 
 export default function OffersTable() {
@@ -225,7 +225,7 @@ export default function OffersTable() {
               <SortTh label="Marża" sortKey="margin_pct" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th>Platforma</Th>
               <Th>Tagi</Th>
-              <SortTh label="Dodano" sortKey="scraped_at" current={sortKey} dir={sortDir} onSort={handleSort} />
+              <SortTh label="Dodano na OLX" sortKey="posted_at" current={sortKey} dir={sortDir} onSort={handleSort} />
               <Th>Opis / Notatka</Th>
               <Th></Th>
             </tr>
@@ -271,7 +271,7 @@ export default function OffersTable() {
                   </div>
                 </Td>
                 <Td className="text-xs text-zinc-500 whitespace-nowrap">
-                  {new Date(r.scraped_at).toLocaleString("pl-PL")}
+                  {r.posted_at ? new Date(r.posted_at).toLocaleString("pl-PL") : "—"}
                 </Td>
                 <Td className="max-w-sm">
                   {r.note
