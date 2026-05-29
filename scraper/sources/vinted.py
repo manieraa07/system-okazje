@@ -43,7 +43,7 @@ def search(query: str, max_offers: int = 40) -> list[dict]:
 
             search_url = f"{VINTED_BASE}/catalog?search_text={query.replace(' ', '+')}&order=newest_first"
             page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(4000)
+            page.wait_for_timeout(8000)
 
             browser.close()
 
