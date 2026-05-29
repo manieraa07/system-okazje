@@ -38,6 +38,7 @@ def compute_margin(market_value: float, price: float) -> float | None:
 
 def process_watchlist_item(sb, item: dict) -> dict:
     stats = {"seen": 0, "new": 0, "analyzed": 0, "tokens": 0}
+    run_started_at = datetime.now(timezone.utc)
 
     queries = [item["name"]] + (item.get("keywords") or [])
     queries = list(dict.fromkeys(q.strip() for q in queries if q.strip()))[:3]
@@ -67,6 +68,8 @@ def process_watchlist_item(sb, item: dict) -> dict:
         unique.append(o)
 
     stats["seen"] = len(unique)
+
+    new_ids: list[str] = []
 
     olx_client = httpx.Client(http2=True)
     try:
@@ -147,13 +150,37 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 "margin_pct": compute_margin(float(item["market_value"]), offer["price"]),
                 "status": "analyzed",
                 "analyzed_at": datetime.now(timezone.utc).isoformat(),
+                "is_new": True,
             }
             inserted = insert_offer(sb, row)
             if inserted:
                 stats["new"] += 1
                 stats["analyzed"] += 1
+                if inserted.get("id"):
+                    new_ids.append(inserted["id"])
     finally:
         olx_client.close()
+
+    # Wyczyść is_new ze starych ofert (nie z tego runu)
+    if new_ids:
+        try:
+            sb.table("offers").update({"is_new": False})\
+                .eq("watchlist_id", item["id"])\
+                .eq("is_new", True)\
+                .not_.in_("id", new_ids)\
+                .execute()
+        except Exception as e:
+            print(f"[is_new cleanup] {e}")
+    else:
+        # Brak nowych — wyczyść wszystkie is_new dla tego itemu
+        try:
+            sb.table("offers").update({"is_new": False})\
+                .eq("watchlist_id", item["id"])\
+                .eq("is_new", True)\
+                .execute()
+        except Exception as e:
+            print(f"[is_new cleanup] {e}")
+
     return stats
 
 
