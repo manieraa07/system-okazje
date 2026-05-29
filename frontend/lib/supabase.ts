@@ -22,6 +22,7 @@ export type Offer = {
   is_urgent: boolean;
   is_bundle: boolean;
   is_new: boolean;
+  status: string;
   short_description: string | null;
   scraped_at: string;
   deal_color: "green" | "yellow" | "gray";
