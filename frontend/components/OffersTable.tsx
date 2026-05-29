@@ -13,6 +13,7 @@ export default function OffersTable() {
   const sb = supabaseBrowser();
   const [rows, setRows] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showHidden, setShowHidden] = useState(false);
 
   const [q, setQ] = useState("");
   const [platform, setPlatform] = useState<"all" | "olx" | "allegro" | "vinted">("all");
@@ -21,28 +22,42 @@ export default function OffersTable() {
   const [onlyBundle, setOnlyBundle] = useState(false);
   const [minMargin, setMinMargin] = useState<string>("");
 
+  async function loadRows() {
+    const { data, error } = await sb
+      .from("offers_view")
+      .select("*")
+      .eq("active", true)
+      .order("scraped_at", { ascending: false })
+      .limit(500);
+    if (error) console.error(error);
+    setRows((data || []) as Offer[]);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await sb
-        .from("offers_view")
-        .select("*")
-        .eq("active", true)
-        .order("scraped_at", { ascending: false })
-        .limit(500);
-      if (!cancelled) {
-        if (error) console.error(error);
-        setRows((data || []) as Offer[]);
-        setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [sb]);
+    loadRows();
+  }, []);
+
+  async function hideOffer(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    await sb.from("offers").update({ status: "hidden" }).eq("id", id);
+    setRows(prev => prev.map(r => r.id === id ? { ...r, status: "hidden" } : r));
+  }
+
+  async function restoreOffer(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    await sb.from("offers").update({ status: "analyzed" }).eq("id", id);
+    setRows(prev => prev.map(r => r.id === id ? { ...r, status: "analyzed" } : r));
+  }
+
+  const visible = useMemo(() => rows.filter(r => r.status !== "hidden"), [rows]);
+  const hidden = useMemo(() => rows.filter(r => r.status === "hidden"), [rows]);
 
   const filtered = useMemo(() => {
+    const source = showHidden ? hidden : visible;
     const ql = q.trim().toLowerCase();
     const min = parseFloat(minMargin);
-    return rows.filter(r => {
+    return source.filter(r => {
       if (platform !== "all" && r.platform !== platform) return false;
       if (color !== "all" && r.deal_color !== color) return false;
       if (onlyUrgent && !r.is_urgent) return false;
@@ -54,7 +69,7 @@ export default function OffersTable() {
       }
       return true;
     });
-  }, [rows, q, platform, color, onlyUrgent, onlyBundle, minMargin]);
+  }, [rows, q, platform, color, onlyUrgent, onlyBundle, minMargin, showHidden, visible, hidden]);
 
   return (
     <div className="space-y-4">
@@ -91,7 +106,13 @@ export default function OffersTable() {
           <input type="checkbox" checked={onlyBundle} onChange={e => setOnlyBundle(e.target.checked)} />
           Bundle
         </label>
-        <span className="text-xs text-zinc-400 ml-auto">{filtered.length} / {rows.length}</span>
+        <button
+          onClick={() => setShowHidden(h => !h)}
+          className={`px-3 py-2 rounded text-sm border ${showHidden ? "bg-zinc-700 border-zinc-500 text-white" : "border-white/10 text-zinc-400 hover:text-white"}`}
+        >
+          {showHidden ? "👁 Ukryte" : `👁 Ukryte (${hidden.length})`}
+        </button>
+        <span className="text-xs text-zinc-400 ml-auto">{filtered.length} / {showHidden ? hidden.length : visible.length}</span>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-white/10">
@@ -99,11 +120,11 @@ export default function OffersTable() {
           <thead className="bg-zinc-900/80 text-zinc-300">
             <tr>
               <Th>Tytuł</Th><Th>Przedmiot</Th><Th>Cena</Th><Th>Rynkowa</Th>
-              <Th>Marża</Th><Th>Platforma</Th><Th>Pilność</Th><Th>Dodano</Th><Th>Opis</Th>
+              <Th>Marża</Th><Th>Platforma</Th><Th>Pilność</Th><Th>Dodano</Th><Th>Opis</Th><Th></Th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={9} className="p-6 text-center text-zinc-400">Ładowanie…</td></tr>}
+            {loading && <tr><td colSpan={10} className="p-6 text-center text-zinc-400">Ładowanie…</td></tr>}
             {!loading && filtered.map(r => (
               <tr key={r.id}
                   onClick={() => window.open(r.url, "_blank", "noopener")}
@@ -123,8 +144,28 @@ export default function OffersTable() {
                 <Td className="max-w-[40ch] truncate text-zinc-300" title={r.short_description || ""}>
                   {r.short_description || "—"}
                 </Td>
+                <Td>
+                  {r.status === "hidden" ? (
+                    <button
+                      onClick={e => restoreOffer(r.id, e)}
+                      className="text-zinc-400 hover:text-white text-lg"
+                      title="Przywróć"
+                    >👁</button>
+                  ) : (
+                    <button
+                      onClick={e => hideOffer(r.id, e)}
+                      className="text-zinc-600 hover:text-zinc-300 text-lg"
+                      title="Ukryj"
+                    >🙈</button>
+                  )}
+                </Td>
               </tr>
             ))}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={10} className="p-6 text-center text-zinc-500">
+                {showHidden ? "Brak ukrytych ofert." : "Brak ofert."}
+              </td></tr>
+            )}
           </tbody>
         </table>
       </div>
