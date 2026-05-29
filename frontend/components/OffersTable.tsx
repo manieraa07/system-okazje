@@ -54,8 +54,10 @@ export default function OffersTable() {
 
   async function toggleFavorite(id: string, current: boolean, e: React.MouseEvent) {
     e.stopPropagation();
-    await sb.from("offers").update({ is_favorite: !current }).eq("id", id);
-    setRows(prev => prev.map(r => r.id === id ? { ...r, is_favorite: !current } : r));
+    const update: any = { is_favorite: !current };
+    if (current) update.note = null;
+    await sb.from("offers").update(update).eq("id", id);
+    setRows(prev => prev.map(r => r.id === id ? { ...r, is_favorite: !current, note: current ? null : r.note } : r));
     if (!current) {
       const row = rows.find(r => r.id === id);
       setNoteText(row?.note || "");
@@ -246,7 +248,7 @@ export default function OffersTable() {
                 </Td>
                 <Td className="max-w-sm">
                   {r.note
-                    ? <span className="text-yellow-300 text-xs block" title={r.note}>{r.note}</span>
+                    ? <span className="text-yellow-300 text-xs truncate block max-w-[40ch]" title={r.note}>{r.note}</span>
                     : <span className="text-zinc-500 text-xs truncate block max-w-[40ch]" title={r.short_description || ""}>{r.short_description || "—"}</span>
                   }
                 </Td>
