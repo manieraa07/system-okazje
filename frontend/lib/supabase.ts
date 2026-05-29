@@ -22,6 +22,8 @@ export type Offer = {
   is_urgent: boolean;
   is_bundle: boolean;
   is_new: boolean;
+  is_favorite: boolean;
+  note: string | null;
   status: string;
   short_description: string | null;
   scraped_at: string;
