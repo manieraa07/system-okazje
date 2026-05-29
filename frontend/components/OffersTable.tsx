@@ -115,6 +115,7 @@ export default function OffersTable() {
                 <Td className="font-mono">{r.margin_pct != null ? `${r.margin_pct.toFixed(0)}%` : "—"}</Td>
                 <Td className="uppercase text-xs">{r.platform}</Td>
                 <Td>
+                  {r.is_new && <span className="px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-200 text-xs mr-1">🆕 nowe</span>}
                   {r.is_urgent && <span className="px-1.5 py-0.5 rounded bg-red-900/60 text-red-200 text-xs mr-1">🔥 pilne</span>}
                   {r.is_bundle && <span className="px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 text-xs">📦 bundle</span>}
                 </Td>
