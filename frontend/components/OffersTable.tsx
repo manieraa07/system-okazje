@@ -307,7 +307,7 @@ function ActionBtn({
   activeClass?: string;
 }) {
   return (
-    <div className="relative group">
+    <div className="relative group/btn">
       <button
         onClick={onClick}
         className={`p-1.5 rounded-lg transition-colors ${
@@ -316,7 +316,7 @@ function ActionBtn({
       >
         {children}
       </button>
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-zinc-800 text-zinc-200 text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-white/10">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-zinc-800 text-zinc-200 text-xs rounded-lg whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none z-10 border border-white/10">
         {tooltip}
       </div>
     </div>
