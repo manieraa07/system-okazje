@@ -1,1 +1,1 @@
-from . import olx, allegro, vinted
+from . import olx, allegro, vinted, ebay
