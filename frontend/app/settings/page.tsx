@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabaseBrowser, WatchItem } from "@/lib/supabase";
+import { Pencil, X, Check } from "lucide-react";
 
 const EMPTY: Omit<WatchItem, "id"> = {
   name: "", keywords: [], exclude_terms: [],
@@ -29,6 +30,8 @@ export default function SettingsPage() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupDone, setPopupDone] = useState(false);
   const [doneMsg, setDoneMsg] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Omit<WatchItem, "id">>(EMPTY);
 
   async function load() {
     const { data } = await sb.from("watchlist").select("*").order("name");
@@ -55,6 +58,35 @@ export default function SettingsPage() {
     const t = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(t);
   }, [running]);
+
+  function startEdit(it: WatchItem) {
+    setEditingId(it.id);
+    setEditDraft({
+      name: it.name,
+      keywords: it.keywords,
+      exclude_terms: it.exclude_terms,
+      market_value: it.market_value,
+      max_buy_price: it.max_buy_price,
+      good_margin_pct: it.good_margin_pct,
+      ok_margin_pct: it.ok_margin_pct,
+      active: it.active,
+    });
+  }
+
+  async function saveEdit(id: string) {
+    const payload = {
+      ...editDraft,
+      keywords: typeof editDraft.keywords === "string"
+        ? (editDraft.keywords as unknown as string).split(",").map(s => s.trim()).filter(Boolean)
+        : editDraft.keywords,
+      exclude_terms: typeof editDraft.exclude_terms === "string"
+        ? (editDraft.exclude_terms as unknown as string).split(",").map(s => s.trim()).filter(Boolean)
+        : editDraft.exclude_terms,
+    };
+    await sb.from("watchlist").update(payload).eq("id", id);
+    setEditingId(null);
+    load();
+  }
 
   async function runScraper() {
     if (running) return;
@@ -161,6 +193,53 @@ export default function SettingsPage() {
   return (
     <div className="space-y-8">
 
+      {editingId && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Edytuj przedmiot</h2>
+              <button onClick={() => setEditingId(null)} className="text-zinc-500 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              <Input label="Nazwa" value={editDraft.name}
+                     onChange={v => setEditDraft({ ...editDraft, name: v })} />
+              <Input label="Słowa kluczowe (po przecinku)"
+                     value={(editDraft.keywords as any) || ""}
+                     onChange={v => setEditDraft({ ...editDraft, keywords: v as any })}
+                     placeholder="ps5, playstation 5" />
+              <Input label="Wyklucz (po przecinku)"
+                     value={(editDraft.exclude_terms as any) || ""}
+                     onChange={v => setEditDraft({ ...editDraft, exclude_terms: v as any })}
+                     placeholder="etui, kabel" />
+              <div className="grid grid-cols-2 gap-3">
+                <NumberInput label="Wartość rynkowa (zł)" value={editDraft.market_value}
+                             onChange={v => setEditDraft({ ...editDraft, market_value: v })} />
+                <NumberInput label="Max cena zakupu (zł)" value={editDraft.max_buy_price}
+                             onChange={v => setEditDraft({ ...editDraft, max_buy_price: v })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <NumberInput label="🟢 Dobra ≥ % marży" value={editDraft.good_margin_pct}
+                             onChange={v => setEditDraft({ ...editDraft, good_margin_pct: v })} />
+                <NumberInput label="🟡 Średnia ≥ %" value={editDraft.ok_margin_pct}
+                             onChange={v => setEditDraft({ ...editDraft, ok_margin_pct: v })} />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setEditingId(null)}
+                className="bg-zinc-700 hover:bg-zinc-600 px-4 py-2 rounded-lg text-sm transition-colors">
+                Anuluj
+              </button>
+              <button onClick={() => saveEdit(editingId)}
+                className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                <Check size={15} /> Zapisz
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPopup && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 max-w-sm w-full text-center space-y-6 shadow-2xl">
@@ -182,16 +261,12 @@ export default function SettingsPage() {
                 <p className="text-zinc-100 font-semibold">{doneMsg.replace(/^[✅❌⏱️]\s*/, "")}</p>
                 <p className="text-xs text-zinc-400">Czas: {fmt(finalElapsed)}</p>
                 <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={() => { setShowPopup(false); window.location.href = "/"; }}
-                    className="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-lg text-sm font-medium"
-                  >
+                  <button onClick={() => { setShowPopup(false); window.location.href = "/"; }}
+                    className="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-lg text-sm font-medium">
                     Zobacz oferty →
                   </button>
-                  <button
-                    onClick={() => setShowPopup(false)}
-                    className="bg-zinc-700 hover:bg-zinc-600 px-5 py-2 rounded-lg text-sm"
-                  >
+                  <button onClick={() => setShowPopup(false)}
+                    className="bg-zinc-700 hover:bg-zinc-600 px-5 py-2 rounded-lg text-sm">
                     Zostań
                   </button>
                 </div>
@@ -284,8 +359,14 @@ export default function SettingsPage() {
                              onChange={e => patch(it.id, { active: e.target.checked })} />
                     </Td>
                     <Td>
-                      <button onClick={() => remove(it.id)}
-                              className="text-red-400 hover:text-red-300 text-xs">usuń</button>
+                      <div className="flex gap-2">
+                        <button onClick={() => startEdit(it)}
+                                className="text-zinc-400 hover:text-white">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => remove(it.id)}
+                                className="text-red-400 hover:text-red-300 text-xs">usuń</button>
+                      </div>
                     </Td>
                   </tr>
                 ))}
