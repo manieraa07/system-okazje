@@ -36,6 +36,62 @@ def compute_margin(market_value: float, price: float) -> float | None:
     return round((market_value - price) / market_value * 100, 2)
 
 
+def send_email_notifications(good_offers: list[dict]) -> None:
+    api_key = os.environ.get("RESEND_API_KEY")
+    recipients_raw = os.environ.get("NOTIFY_EMAIL", "")
+    if not api_key or not recipients_raw or not good_offers:
+        return
+    recipients = [e.strip() for e in recipients_raw.split(",") if e.strip()]
+    if not recipients:
+        return
+    try:
+        import resend
+        resend.api_key = api_key
+
+        rows = ""
+        for o in good_offers:
+            margin = f"{o['margin_pct']:.0f}%" if o.get("margin_pct") is not None else "—"
+            urgent = " 🔥" if o.get("is_urgent") else ""
+            bundle = " 📦" if o.get("is_bundle") else ""
+            rows += f"""
+            <tr>
+              <td style="padding:8px 12px;border-bottom:1px solid #333;">{o['title']}{urgent}{bundle}</td>
+              <td style="padding:8px 12px;border-bottom:1px solid #333;font-weight:bold;color:#34d399;">{margin}</td>
+              <td style="padding:8px 12px;border-bottom:1px solid #333;">{o['price']} zł</td>
+              <td style="padding:8px 12px;border-bottom:1px solid #333;">{o.get('platform','').upper()}</td>
+              <td style="padding:8px 12px;border-bottom:1px solid #333;"><a href="{o['url']}" style="color:#60a5fa;">Zobacz →</a></td>
+            </tr>"""
+
+        html = f"""
+        <div style="font-family:sans-serif;background:#0a0a0a;color:#e4e4e7;padding:24px;max-width:700px;">
+          <h2 style="color:#34d399;margin-bottom:4px;">🎯 Okazje — {len(good_offers)} nowych ofert</h2>
+          <p style="color:#71717a;margin-bottom:20px;">Znaleziono nowe oferty spełniające twoje kryteria.</p>
+          <table style="width:100%;border-collapse:collapse;background:#18181b;border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background:#27272a;color:#a1a1aa;font-size:12px;text-transform:uppercase;">
+                <th style="padding:10px 12px;text-align:left;">Tytuł</th>
+                <th style="padding:10px 12px;text-align:left;">Marża</th>
+                <th style="padding:10px 12px;text-align:left;">Cena</th>
+                <th style="padding:10px 12px;text-align:left;">Platforma</th>
+                <th style="padding:10px 12px;text-align:left;">Link</th>
+              </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+          <p style="color:#52525b;font-size:12px;margin-top:16px;">Okazje System — automatyczne powiadomienie</p>
+        </div>"""
+
+        resend.Emails.send({
+            "from": "Okazje <onboarding@resend.dev>",
+            "to": recipients,
+            "subject": f"🎯 {len(good_offers)} nowych okazji",
+            "html": html,
+        })
+        print(f"[email] wysłano do {recipients}")
+    except Exception as e:
+        print(f"[email] błąd: {e}")
+
+
 def process_watchlist_item(sb, item: dict) -> dict:
     stats = {"seen": 0, "new": 0, "analyzed": 0, "tokens": 0}
     run_started_at = datetime.now(timezone.utc)
@@ -70,6 +126,7 @@ def process_watchlist_item(sb, item: dict) -> dict:
     stats["seen"] = len(unique)
 
     new_ids: list[str] = []
+    good_offers: list[dict] = []
 
     olx_client = httpx.Client(http2=True)
     try:
@@ -134,6 +191,8 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 f"{offer['title']} {offer.get('description') or ''}"
             )
 
+            margin = compute_margin(float(item["market_value"]), offer["price"])
+
             row = {
                 **_offer_to_row(offer),
                 "watchlist_id": item["id"],
@@ -147,7 +206,7 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 "confidence": analysis.get("confidence"),
                 "analysis_notes": analysis.get("notes"),
                 "market_value": float(item["market_value"]),
-                "margin_pct": compute_margin(float(item["market_value"]), offer["price"]),
+                "margin_pct": margin,
                 "status": "analyzed",
                 "analyzed_at": datetime.now(timezone.utc).isoformat(),
                 "is_new": True,
@@ -158,13 +217,24 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 stats["analyzed"] += 1
                 if inserted.get("id"):
                     new_ids.append(inserted["id"])
+                # Zbierz zielone oferty do emaila
+                good_margin = float(item.get("good_margin_pct") or 30)
+                if margin is not None and margin >= good_margin:
+                    good_offers.append({
+                        "title": offer["title"],
+                        "price": offer["price"],
+                        "margin_pct": margin,
+                        "url": offer["url"],
+                        "platform": offer["platform"],
+                        "is_urgent": is_urgent,
+                        "is_bundle": is_bundle,
+                    })
     finally:
         olx_client.close()
 
-    # Wyczyść is_new ze starych ofert (nie z tego runu)
     if new_ids:
         try:
-            sb.table("offers").update({"is_new": False})\
+            sb.from_("offers").update({"is_new": False})\
                 .eq("watchlist_id", item["id"])\
                 .eq("is_new", True)\
                 .not_.in_("id", new_ids)\
@@ -172,15 +242,15 @@ def process_watchlist_item(sb, item: dict) -> dict:
         except Exception as e:
             print(f"[is_new cleanup] {e}")
     else:
-        # Brak nowych — wyczyść wszystkie is_new dla tego itemu
         try:
-            sb.table("offers").update({"is_new": False})\
+            sb.from_("offers").update({"is_new": False})\
                 .eq("watchlist_id", item["id"])\
                 .eq("is_new", True)\
                 .execute()
         except Exception as e:
             print(f"[is_new cleanup] {e}")
 
+    stats["good_offers"] = good_offers
     return stats
 
 
@@ -223,13 +293,14 @@ def main() -> int:
         print("Pusta watchlist — nic do roboty.")
         return 0
 
-    # Wyczyść wszystkie is_new przed nowym runem
     try:
         sb.from_("offers").update({"is_new": False}).eq("is_new", True).execute()
     except Exception as e:
         print(f"[is_new reset] {e}")
 
     total = {"seen": 0, "new": 0, "analyzed": 0, "tokens": 0}
+    all_good_offers: list[dict] = []
+
     for item in watchlist:
         run_id = log_run(sb, watchlist_id=item["id"], platform="olx+allegro+vinted")
         try:
@@ -238,10 +309,14 @@ def main() -> int:
                        offers_seen=s["seen"], offers_new=s["new"],
                        offers_analyzed=s["analyzed"], claude_tokens=s["tokens"])
             for k in total: total[k] += s[k]
+            all_good_offers.extend(s.get("good_offers") or [])
             print(f"[{item['name']}] seen={s['seen']} new={s['new']} analyzed={s['analyzed']} tokens={s['tokens']}")
         except Exception as e:
             traceback.print_exc()
             finish_run(sb, run_id, error=str(e))
+
+    if all_good_offers:
+        send_email_notifications(all_good_offers)
 
     print(f"RAZEM: {total}")
     return 0
