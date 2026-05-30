@@ -7,7 +7,7 @@ import { Pencil, X, Check } from "lucide-react";
 const EMPTY: Omit<WatchItem, "id"> = {
   name: "", keywords: [], exclude_terms: [],
   market_value: 0, max_buy_price: 0,
-  good_margin_pct: 30, ok_margin_pct: 15, active: true,
+  good_margin_pct: 30, ok_margin_pct: 15, active: true, market: "pl",
 };
 
 interface RunInfo {
