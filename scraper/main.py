@@ -33,7 +33,10 @@ else:
 def compute_margin(market_value: float, price: float) -> float | None:
     if not market_value or market_value <= 0:
         return None
-    return round((market_value - price) / market_value * 100, 2)
+    result = round((market_value - price) / market_value * 100, 2)
+    if abs(result) > 9999:
+        return None
+    return result
 
 
 def send_email_notifications(good_offers: list[dict]) -> None:
