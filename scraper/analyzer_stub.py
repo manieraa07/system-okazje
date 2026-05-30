@@ -47,6 +47,7 @@ Odpowiedz TYLKO w JSON (bez markdown, bez komentarzy):
 Zasady:
 - is_real_item=true TYLKO jeśli ogłoszenie dotyczy dokładnie szukanego przedmiotu (nie akcesoriów, nie innych modeli, nie uszkodzonych)
 - Jeśli tytuł to akcesorium (etui, kabel, szkło, ładowarka) → is_real_item=false
+- Jeśli w opisie jest "tylko odbiór", "odbiór osobisty", "nie wysyłam", "nie wysylam", "brak wysyłki" → is_real_item=false
 - Jeśli to inny model niż szukany (np. szukamy S20 a jest S21/S10/zegarek) → is_real_item=false
 - is_urgent=true jeśli sprzedający jest w pośpiechu (wyprowadzka, pilne, na dziś)
 - is_bundle=true jeśli sprzedaje zestaw kilku rzeczy"""
