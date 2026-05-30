@@ -33,4 +33,5 @@ jobs:
           MAX_OFFERS_PER_ITEM:   "40"
           RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL:          ${{ secrets.NOTIFY_EMAIL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: python main.py
