@@ -241,7 +241,7 @@ export default function OffersTable() {
                 className={`group cursor-pointer border-t border-white/5 transition-colors ${ROW_COLOR[r.deal_color]}`}
               >
                 <Td className="max-w-xs">
-                  <span className="font-medium truncate block max-w-[26ch]" title={r.title}>{r.title}</span>
+                  <span className="font-medium block overflow-hidden group-hover:overflow-visible group-hover:whitespace-normal group-hover:max-w-none whitespace-nowrap max-w-[26ch]" title={r.title}>{r.title}</span>
                 </Td>
                 <Td className="text-zinc-300 whitespace-nowrap">{r.matched_item || r.watchlist_name}</Td>
                 <Td className="font-mono font-semibold whitespace-nowrap">{fmt(r.price)} zł</Td>
@@ -276,7 +276,7 @@ export default function OffersTable() {
                 <Td className="max-w-sm">
                   {r.note
                     ? <span className="text-yellow-300 text-xs block max-w-[40ch] overflow-hidden group-hover:overflow-visible group-hover:whitespace-normal whitespace-nowrap" title={r.note}>{r.note}</span>
-                    : <span className="text-zinc-500 text-xs truncate block max-w-[40ch]" title={r.short_description || ""}>{r.short_description || "—"}</span>
+                    : <span className="text-zinc-500 text-xs block overflow-hidden group-hover:overflow-visible group-hover:whitespace-normal group-hover:max-w-none whitespace-nowrap max-w-[40ch]" title={r.short_description || ""}>{r.short_description || "—"}</span>
                   }
                 </Td>
                 <Td>
