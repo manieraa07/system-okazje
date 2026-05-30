@@ -70,6 +70,7 @@ export default function SettingsPage() {
       good_margin_pct: it.good_margin_pct,
       ok_margin_pct: it.ok_margin_pct,
       active: it.active,
+      market: it.market || "pl",
     });
   }
 
