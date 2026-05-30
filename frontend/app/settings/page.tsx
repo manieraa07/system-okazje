@@ -203,8 +203,29 @@ export default function SettingsPage() {
               </button>
             </div>
             <div className="grid grid-cols-1 gap-3">
-              <Input label="Nazwa" value={editDraft.name}
-                     onChange={v => setEditDraft({ ...editDraft, name: v })} />
+              <div className="space-y-1">
+                <label className="text-sm text-zinc-400">Nazwa</label>
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 bg-zinc-950 border border-white/10 rounded px-2 py-1.5 text-sm"
+                    value={editDraft.name}
+                    onChange={e => setEditDraft({ ...editDraft, name: e.target.value })}
+                  />
+                  <button
+                    onClick={() => {
+                      const s = getSuggestions(editDraft.name);
+                      if (s) {
+                        if (s.keywords.length > 0) setEditDraft(d => ({ ...d, keywords: s.keywords.join(", ") as any }));
+                        setEditDraft(d => ({ ...d, exclude_terms: s.exclude.join(", ") as any }));
+                      }
+                    }}
+                    disabled={!editDraft.name.trim()}
+                    className="bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 px-2 py-1.5 rounded text-xs whitespace-nowrap"
+                  >
+                    ✨ Sugeruj
+                  </button>
+                </div>
+              </div>
               <Input label="Słowa kluczowe (po przecinku)"
                      value={(editDraft.keywords as any) || ""}
                      onChange={v => setEditDraft({ ...editDraft, keywords: v as any })}
@@ -290,11 +311,33 @@ export default function SettingsPage() {
         </button>
       </section>
 
-      <section>
+     <section>
         <h2 className="text-lg font-semibold mb-3">Dodaj przedmiot</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-zinc-900/50 border border-white/10 rounded-lg p-4">
-          <Input label="Nazwa (np. PS5)" value={draft.name}
-                 onChange={v => setDraft({ ...draft, name: v })} />
+          <div className="space-y-1">
+            <label className="text-sm text-zinc-400">Nazwa (np. PS5)</label>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 bg-zinc-950 border border-white/10 rounded px-2 py-1.5 text-sm"
+                value={draft.name}
+                onChange={e => setDraft({ ...draft, name: e.target.value })}
+              />
+              <button
+                onClick={() => {
+                  const s = getSuggestions(draft.name);
+                  if (s) {
+                    if (s.keywords.length > 0) setDraft(d => ({ ...d, keywords: s.keywords.join(", ") as any }));
+                    setDraft(d => ({ ...d, exclude_terms: s.exclude.join(", ") as any }));
+                  }
+                }}
+                disabled={!draft.name.trim()}
+                className="bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 px-2 py-1.5 rounded text-xs whitespace-nowrap"
+                title="Sugeruj keywords i wykluczenia"
+              >
+                ✨ Sugeruj
+              </button>
+            </div>
+          </div>
           <Input label="Słowa kluczowe (po przecinku)" value={(draft.keywords as any) || ""}
                  onChange={v => setDraft({ ...draft, keywords: v as any })}
                  placeholder="ps5, playstation 5, sony ps 5" />
