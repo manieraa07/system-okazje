@@ -34,4 +34,6 @@ jobs:
           RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL:          ${{ secrets.NOTIFY_EMAIL }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          EBAY_APP_ID:           ${{ secrets.EBAY_APP_ID }}
+          EBAY_CLIENT_SECRET:    ${{ secrets.EBAY_CLIENT_SECRET }}
         run: python main.py
