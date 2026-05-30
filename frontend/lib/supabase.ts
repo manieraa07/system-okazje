@@ -11,10 +11,11 @@ export function supabaseBrowser(): SupabaseClient {
 }
 export type Offer = {
   id: string;
-  platform: "olx" | "allegro" | "vinted";
+  platform: "olx" | "allegro" | "vinted" | "ebay";
   url: string;
   title: string;
   price: number;
+  currency: string;
   market_value: number | null;
   margin_pct: number | null;
   watchlist_name: string | null;
@@ -30,6 +31,7 @@ export type Offer = {
   posted_at: string | null;
   deal_color: "green" | "yellow" | "gray";
   active: boolean;
+  market: string;
 };
 export type WatchItem = {
   id: string;
@@ -41,4 +43,5 @@ export type WatchItem = {
   good_margin_pct: number;
   ok_margin_pct: number;
   active: boolean;
+  market: string;
 };
