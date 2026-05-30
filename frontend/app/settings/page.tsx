@@ -1,5 +1,5 @@
 "use client";
-
+import { getSuggestions } from "@/lib/suggestions";
 import { useEffect, useState } from "react";
 import { supabaseBrowser, WatchItem } from "@/lib/supabase";
 import { Pencil, X, Check } from "lucide-react";
