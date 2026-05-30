@@ -13,6 +13,7 @@ from db import (
     insert_offer, update_offer, log_run, finish_run,
 )
 from sources import olx, allegro, vinted
+from sources import ebay
 from filters import (
     matches_keywords, is_accessory_by_title,
     is_game_or_peripheral, price_sanity_check,
@@ -56,11 +57,12 @@ def send_email_notifications(good_offers: list[dict]) -> None:
             margin = f"{o['margin_pct']:.0f}%" if o.get("margin_pct") is not None else "—"
             urgent = " 🔥" if o.get("is_urgent") else ""
             bundle = " 📦" if o.get("is_bundle") else ""
+            currency = "€" if o.get("market") == "de" else "zł"
             rows += f"""
             <tr>
               <td style="padding:8px 12px;border-bottom:1px solid #333;">{o['title']}{urgent}{bundle}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #333;font-weight:bold;color:#34d399;">{margin}</td>
-              <td style="padding:8px 12px;border-bottom:1px solid #333;">{o['price']} zł</td>
+              <td style="padding:8px 12px;border-bottom:1px solid #333;">{o['price']} {currency}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #333;">{o.get('platform','').upper()}</td>
               <td style="padding:8px 12px;border-bottom:1px solid #333;"><a href="{o['url']}" style="color:#60a5fa;">Zobacz →</a></td>
             </tr>"""
@@ -97,25 +99,31 @@ def send_email_notifications(good_offers: list[dict]) -> None:
 
 def process_watchlist_item(sb, item: dict) -> dict:
     stats = {"seen": 0, "new": 0, "analyzed": 0, "tokens": 0}
-    run_started_at = datetime.now(timezone.utc)
+    market = item.get("market", "pl")
 
     queries = [item["name"]] + (item.get("keywords") or [])
     queries = list(dict.fromkeys(q.strip() for q in queries if q.strip()))[:3]
 
     raw: list[dict] = []
     for q in queries:
-        try:
-            raw += olx.search(q, MAX_OFFERS_PER_ITEM)
-        except Exception as e:
-            print(f"[olx] {q!r}: {e}")
-        try:
-            raw += allegro.search(q, MAX_OFFERS_PER_ITEM)
-        except Exception as e:
-            print(f"[allegro] {q!r}: {e}")
-        try:
-            raw += vinted.search(q, MAX_OFFERS_PER_ITEM)
-        except Exception as e:
-            print(f"[vinted] {q!r}: {e}")
+        if market == "pl":
+            try:
+                raw += olx.search(q, MAX_OFFERS_PER_ITEM)
+            except Exception as e:
+                print(f"[olx] {q!r}: {e}")
+            try:
+                raw += allegro.search(q, MAX_OFFERS_PER_ITEM)
+            except Exception as e:
+                print(f"[allegro] {q!r}: {e}")
+            try:
+                raw += vinted.search(q, MAX_OFFERS_PER_ITEM)
+            except Exception as e:
+                print(f"[vinted] {q!r}: {e}")
+        elif market == "de":
+            try:
+                raw += ebay.search(q, MAX_OFFERS_PER_ITEM)
+            except Exception as e:
+                print(f"[ebay] {q!r}: {e}")
 
     seen_keys: set[tuple[str, str]] = set()
     unique: list[dict] = []
@@ -137,7 +145,7 @@ def process_watchlist_item(sb, item: dict) -> dict:
             if offer_exists(sb, offer["platform"], offer["external_id"]):
                 continue
 
-            if offer.get("seller_type") == "business":
+            if offer.get("seller_type") == "business" and market == "pl":
                 _save_rejected(sb, offer, item, "business_seller")
                 continue
             if not offer.get("shipping_available"):
@@ -163,7 +171,7 @@ def process_watchlist_item(sb, item: dict) -> dict:
             if offer["platform"] == "olx" and not offer.get("description"):
                 offer["description"] = olx.fetch_description(olx_client, offer["url"])
 
-            if looks_like_business(offer.get("seller_name"), offer.get("description")):
+            if market == "pl" and looks_like_business(offer.get("seller_name"), offer.get("description")):
                 _save_rejected(sb, offer, item, "business_in_description")
                 continue
 
@@ -178,7 +186,7 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 )
                 stats["tokens"] += tokens
             except Exception as e:
-                print(f"[claude] {offer['url']}: {e}")
+                print(f"[analyzer] {offer['url']}: {e}")
                 continue
 
             if not analysis.get("is_real_item"):
@@ -213,6 +221,7 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 "status": "analyzed",
                 "analyzed_at": datetime.now(timezone.utc).isoformat(),
                 "is_new": True,
+                "market": market,
             }
             inserted = insert_offer(sb, row)
             if inserted:
@@ -220,7 +229,6 @@ def process_watchlist_item(sb, item: dict) -> dict:
                 stats["analyzed"] += 1
                 if inserted.get("id"):
                     new_ids.append(inserted["id"])
-                # Zbierz zielone oferty do emaila
                 good_margin = float(item.get("good_margin_pct") or 30)
                 if margin is not None and margin >= good_margin:
                     good_offers.append({
@@ -231,6 +239,7 @@ def process_watchlist_item(sb, item: dict) -> dict:
                         "platform": offer["platform"],
                         "is_urgent": is_urgent,
                         "is_bundle": is_bundle,
+                        "market": market,
                     })
     finally:
         olx_client.close()
@@ -271,6 +280,7 @@ def _offer_to_row(o: dict) -> dict:
         "seller_name": o.get("seller_name"),
         "location": o.get("location"),
         "posted_at": o.get("posted_at"),
+        "market": o.get("market", "pl"),
     }
 
 
@@ -305,7 +315,8 @@ def main() -> int:
     all_good_offers: list[dict] = []
 
     for item in watchlist:
-        run_id = log_run(sb, watchlist_id=item["id"], platform="olx+allegro+vinted")
+        market = item.get("market", "pl")
+        run_id = log_run(sb, watchlist_id=item["id"], platform=f"olx+allegro+vinted" if market == "pl" else "ebay")
         try:
             s = process_watchlist_item(sb, item)
             finish_run(sb, run_id,
@@ -313,7 +324,7 @@ def main() -> int:
                        offers_analyzed=s["analyzed"], claude_tokens=s["tokens"])
             for k in total: total[k] += s[k]
             all_good_offers.extend(s.get("good_offers") or [])
-            print(f"[{item['name']}] seen={s['seen']} new={s['new']} analyzed={s['analyzed']} tokens={s['tokens']}")
+            print(f"[{item['name']}] market={market} seen={s['seen']} new={s['new']} analyzed={s['analyzed']} tokens={s['tokens']}")
         except Exception as e:
             traceback.print_exc()
             finish_run(sb, run_id, error=str(e))
