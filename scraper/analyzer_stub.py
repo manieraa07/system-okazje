@@ -23,7 +23,10 @@ def analyze(
     # 2) Czy pasuje do keywords? (już sprawdzone w main, tu dla pewności)
     matches = matches_keywords(text, watchlist_keywords or [watchlist_name])
 
-    is_real_item = matches and not is_accessory
+    # Sprawdzaj akcesorium tylko po tytule, nie po opisie
+    title_n = normalize(title)
+    is_accessory_title = any(w in title_n for w in DEFAULT_ACCESSORY_WORDS)
+    is_real_item = matches and not is_accessory_title
 
     # 3) Pilność i bundle
     urgency_signals = detect_urgency(text)
