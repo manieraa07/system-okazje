@@ -1,0 +1,22 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+import sys
+sys.path.insert(0, '.')
+from main import send_email_notifications
+
+test_offers = [
+    {
+        "title": "Samsung Galaxy S20 TEST",
+        "price": 800,
+        "margin_pct": 33.0,
+        "url": "https://olx.pl",
+        "platform": "olx",
+        "is_urgent": False,
+        "is_bundle": False,
+    }
+]
+
+send_email_notifications(test_offers)
+print("Gotowe — sprawdź maila")
