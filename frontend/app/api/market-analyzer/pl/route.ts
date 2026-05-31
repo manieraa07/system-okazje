@@ -16,23 +16,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Fraza jest wymagana" }, { status: 400 });
     }
 
-    // Zaawansowane szukanie wariacji (rozwiązuje problem małej liczby ofert)
-    let queryFilter = `%${phrase}%`;
-    if (phrase.toLowerCase() === "ps5" || phrase.toLowerCase() === "playstation 5") {
-      // Jeśli szukasz PS5, złapmy wszystkie możliwe odmiany z bazy
-      queryFilter = "%ps5%,%playstation 5%,%playstation5%";
-    }
+    const cleanPhrase = phrase.toLowerCase().trim();
+    let supabaseQuery = supabase.from("offers").select("title, price, url");
 
-    let supabaseQuery = supabase.from("offers").select("title, price, url"); // Pobieramy też link url
-
-    if (queryFilter.includes(",")) {
-      const parts = queryFilter.split(",").map(p => `title.ilike.${p}`);
-      supabaseQuery = supabaseQuery.or(parts.join(","));
+    // Rozwiązanie problemu słów kluczowych: 
+    // Jeśli użytkownik szuka PS5 lub odmian, automatycznie i potężnie rozszerzamy zapytanie do bazy o wszystkie synonimy
+    if (cleanPhrase === "ps5" || cleanPhrase === "playstation 5" || cleanPhrase === "playstation5" || cleanPhrase === "konsola ps5") {
+      supabaseQuery = supabaseQuery.or(
+        "title.ilike.%ps5%," +
+        "title.ilike.%playstation 5%," +
+        "title.ilike.%playstation5%," +
+        "title.ilike.%sony playstation 5%"
+      );
     } else {
-      supabaseQuery = supabaseQuery.ilike("title", queryFilter);
+      // Dla każdego innego produktu (np. Dyson) sprawdzamy standardowo, ale elastycznie
+      supabaseQuery = supabaseQuery.ilike("title", `%${phrase}%`);
     }
 
-    const { data: offers, error: dbError } = await supabaseQuery.limit(60);
+    // Pobieramy większy limit (np. 80 ofert), żeby AI miało z czego wybierać
+    const { data: offers, error: dbError } = await supabaseQuery.limit(80);
 
     if (dbError) throw dbError;
 
@@ -43,29 +45,28 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-    Jesteś zaawansowanym rzeczoznawcą rynku e-commerce. Przeanalizuj listę ofert dla: "${phrase}".
-    Twój cel: Wyznaczyć realną, bazową wartość rynkową SAMEGO URZĄDZENIA GŁÓWNEGO w standardowym zestawie (np. konsola + 1 pad).
+    Jesteś profesjonalnym rzeczoznawcą wyceniającym sprzęt elektroniczny w e-commerce. 
+    Przeanalizuj poniższą listę ogłoszeń (tytuł, cena, url) zebranych dla hasła: "${phrase}".
 
-    ZASADA SPRAWIEDLIWEJ WYCENY (BARDZO WAŻNE):
-    Jeśli oferta to potężny zestaw (np. Konsola + PS Portal + Dysk 2TB + 2 Pady) i kosztuje dużo więcej, NIE odrzucaj jej. 
-    Zamiast tego w pamięci ODEJMIJ wartość tych drogich dodatków, aby oszacować, ile z tej kwoty przypada na samą konsolę, i tę skorygowaną wartość weź pod uwagę przy wyliczaniu średniej rynkowej. Nie pozwól, aby bogate zestawy sztucznie zawyżyły końcową cenę bazową!
-
-    SELEKCJA SZUMU: Odrzucaj wyłącznie akcesoria, same gry, puste pudełka lub sprzęt uszkodzony.
+    Twoje kluczowe zadania:
+    1. WYCENA URZĄDZENIA GŁÓWNEGO: Chcemy poznać średnią rynkową wartość SAMEJ KONSOLI / SAMEGO URZĄDZENIA.
+    2. OBSŁUGA BOGATYCH ZESTAWÓW: Jeśli na liście jest oferta typu "PS5 + VR2 + 5 gier + Słuchawki" za 3000 PLN, absolutnie jej NIE odrzucaj! Dorzuć ją do listy "analyzed_offers". Jednak przy obliczaniu końcowej ceny rynkowej ("estimated_market_value_pln") odejmij w pamięci szacowaną wartość tych wielkich dodatków, tak aby ten jeden drogi zestaw nie zawyżył nienaturalnie ceny zwykłej konsoli.
+    3. SELEKCJA SZUMU: Do sekcji "rejected_offers" odsyłaj TYLKO i WYŁĄCZNIE rzeczy, które NIE SĄ urządzeniem głównym (np. same gry, same stojaki, puste pudełka, kable, pady sprzedawane osobno lub konsole uszkodzone/na części).
 
     Oferty do analizy:
     ${JSON.stringify(offers, null, 2)}
 
-    Zwróć wynik WYŁĄCZNIE jako czysty format JSON (bez markdownu):
+    Zwróć wynik WYŁĄCZNIE jako czysty, poprawny format JSON (bez markdownu, bez \`\`\`json):
     {
-      "main_product_name": "Precyzyjna nazwa wycenianego urządzenia rynkowego",
-      "estimated_market_value_pln": 1400,
+      "main_product_name": "Precyzyjna nazwa produktu (np. Sony PlayStation 5)",
+      "estimated_market_value_pln": 1500,
       "analyzed_offers": [
-        {"title": "Tytuł oferty", "price": 1450, "url": "link_z_bazy_danych"}
+        {"title": "Tytuł oferty (zestawy też tu zostają)", "price": 1650, "url": "url_oferty"}
       ],
       "rejected_offers": [
-        {"title": "Tytuł odrzuconej oferty", "reason": "Powód odrzucenia"}
+        {"title": "Tytuł odrzuconego szumu (np. FIFA 25 PS5)", "reason": "Sama gra / Akcesorium"}
       ],
-      "tips": "Krótka analiza dlaczego taka cena (np. uwzględniłem korektę na zestawy z portalami/dyskami)"
+      "tips": "Krótkie uzasadnienie ceny (np. uwzględniono korektę na bogate zestawy z dodatkami)"
     }
     `;
 
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error(error);
+    console.error("Błąd handlera PL:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
