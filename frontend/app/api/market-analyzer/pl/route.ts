@@ -19,22 +19,26 @@ export async function POST(req: Request) {
     const cleanPhrase = phrase.toLowerCase().trim();
     let supabaseQuery = supabase.from("offers").select("title, price, url");
 
-    // Rozwiązanie problemu słów kluczowych: 
-    // Jeśli użytkownik szuka PS5 lub odmian, automatycznie i potężnie rozszerzamy zapytanie do bazy o wszystkie synonimy
+    // Jeśli szukamy PS5 lub pokrewnych, rozbijamy zapytanie na inteligentne słowa kluczowe
     if (cleanPhrase === "ps5" || cleanPhrase === "playstation 5" || cleanPhrase === "playstation5" || cleanPhrase === "konsola ps5") {
       supabaseQuery = supabaseQuery.or(
         "title.ilike.%ps5%," +
-        "title.ilike.%playstation 5%," +
-        "title.ilike.%playstation5%," +
-        "title.ilike.%sony playstation 5%"
+        "title.ilike.%playstation%," +
+        "title.ilike.%play station%"
       );
     } else {
-      // Dla każdego innego produktu (np. Dyson) sprawdzamy standardowo, ale elastycznie
-      supabaseQuery = supabaseQuery.ilike("title", `%${phrase}%`);
+      // Dla każdego innego przedmiotu rozbijamy frazę po spacjach na wypadek innej kolejności słów
+      const words = cleanPhrase.split(/\s+/).filter(w => w.length > 1);
+      if (words.length > 1) {
+        const orFilters = words.map(word => `title.ilike.%${word}%`).join(",");
+        supabaseQuery = supabaseQuery.or(orFilters);
+      } else {
+        supabaseQuery = supabaseQuery.ilike("title", `%${phrase}%`);
+      }
     }
 
-    // Pobieramy większy limit (np. 80 ofert), żeby AI miało z czego wybierać
-    const { data: offers, error: dbError } = await supabaseQuery.limit(80);
+    // Zwiększamy limit do 100, żeby wyciągnąć absolutnie wszystko z bazy
+    const { data: offers, error: dbError } = await supabaseQuery.limit(100);
 
     if (dbError) throw dbError;
 
@@ -50,23 +54,23 @@ export async function POST(req: Request) {
 
     Twoje kluczowe zadania:
     1. WYCENA URZĄDZENIA GŁÓWNEGO: Chcemy poznać średnią rynkową wartość SAMEJ KONSOLI / SAMEGO URZĄDZENIA.
-    2. OBSŁUGA BOGATYCH ZESTAWÓW: Jeśli na liście jest oferta typu "PS5 + VR2 + 5 gier + Słuchawki" za 3000 PLN, absolutnie jej NIE odrzucaj! Dorzuć ją do listy "analyzed_offers". Jednak przy obliczaniu końcowej ceny rynkowej ("estimated_market_value_pln") odejmij w pamięci szacowaną wartość tych wielkich dodatków, tak aby ten jeden drogi zestaw nie zawyżył nienaturalnie ceny zwykłej konsoli.
-    3. SELEKCJA SZUMU: Do sekcji "rejected_offers" odsyłaj TYLKO i WYŁĄCZNIE rzeczy, które NIE SĄ urządzeniem głównym (np. same gry, same stojaki, puste pudełka, kable, pady sprzedawane osobno lub konsole uszkodzone/na części).
+    2. OBSŁUGA BOGATYCH ZESTAWÓW: Jeśli na liście jest oferta z konsolą i masą dodatków (pady, gry, akcesoria), absolutnie jej NIE odrzucaj! Dorzuć ją do listy "analyzed_offers". Jednak przy obliczaniu końcowej ceny rynkowej ("estimated_market_value_pln") odejmij w pamięci szacowaną wartość tych wielkich dodatków, tak aby ten jeden drogi zestaw nie zawyżył nienaturalnie ceny zwykłej konsoli.
+    3. SELEKCJA SZUMU: Do sekcji "rejected_offers" odsyłaj TYLKO i WYŁĄCZNIE rzeczy, które NIE SĄ urządzeniem głównym (np. same gry, same stojaki, puste pudełka, kable, pady sprzedawane osobno lub sprzęt uszkodzony).
 
     Oferty do analizy:
     ${JSON.stringify(offers, null, 2)}
 
-    Zwróć wynik WYŁĄCZNIE jako czysty, poprawny format JSON (bez markdownu, bez \`\`\`json):
+    Zwróć wynik WYŁĄCZNIE jako czysty, poprawny format JSON (bez markdownu):
     {
       "main_product_name": "Precyzyjna nazwa produktu (np. Sony PlayStation 5)",
       "estimated_market_value_pln": 1500,
       "analyzed_offers": [
-        {"title": "Tytuł oferty (zestawy też tu zostają)", "price": 1650, "url": "url_oferty"}
+        {"title": "Tytuł oferty", "price": 1650, "url": "url_oferty"}
       ],
       "rejected_offers": [
-        {"title": "Tytuł odrzuconego szumu (np. FIFA 25 PS5)", "reason": "Sama gra / Akcesorium"}
+        {"title": "Tytuł odrzuconego szumu", "reason": "Sama gra / Akcesorium"}
       ],
-      "tips": "Krótkie uzasadnienie ceny (np. uwzględniono korektę na bogate zestawy z dodatkami)"
+      "tips": "Krótkie uzasadnienie ceny (np. uwzględniono korektę na zestawy z dodatkami)"
     }
     `;
 
