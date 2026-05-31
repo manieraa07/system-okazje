@@ -18,18 +18,20 @@ export async function POST(req: Request) {
 
     const cleanPhrase = phrase.toLowerCase().trim();
 
-    // 1. Budujemy zaawansowane wyszukiwanie słów kluczowych BEZPOŚREDNIO w bazie Supabase
-    let supabaseQuery = supabase.from("offers").select("title, price, url");
+    // 1. Budujemy zapytanie bezpośrednio filtrujące i SORTUJĄCE od najtańszych w bazie danych
+    let supabaseQuery = supabase
+      .from("offers")
+      .select("title, price, url")
+      .gt("price", 400) // Odrzucamy śmieci, ogłoszenia typu "zamienię" lub za darmo (poniżej 400 zł)
+      .order("price", { ascending: true }); // KLUCZOWE: Najpierw sortujemy od absolutnie najniższej ceny w CAŁEJ bazie
 
     if (cleanPhrase === "ps5" || cleanPhrase === "playstation 5" || cleanPhrase === "playstation5" || cleanPhrase === "konsola ps5") {
-      // Dla PS5 przeszukujemy całą bazę pod kątem jakiejkolwiek odmiany
       supabaseQuery = supabaseQuery.or(
         "title.ilike.%ps5%," +
         "title.ilike.%playstation%," +
         "title.ilike.%play station%"
       );
     } else {
-      // Uniwersalna logika dla innych przedmiotów: rozbijamy na słowa i szukamy w bazie (każde słowo jako ILIKE)
       const words = cleanPhrase.split(/\s+/).filter((w: string) => w.length > 1);
       if (words.length > 0) {
         const orFilters = words.map((word: string) => `title.ilike.%${word}%`).join(",");
@@ -39,7 +41,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Pobieramy do 150 DOKŁADNIE DOPASOWANYCH ofert z całej bazy
+    // Pobieramy 150 ABSOLUTNIE NAJTAŃSZYCH ofert dostępnych w bazie danych
     const { data: offers, error: dbError } = await supabaseQuery.limit(150);
 
     if (dbError) throw dbError;
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
       }, { status: 404 });
     }
 
-    // 2. Dodatkowe upewnienie się w JS, że nie przepuścimy starszych generacji (np. PS4) przy szukaniu PS5
+    // 2. Dodatkowa weryfikacja w JS dla generacji konsol (odsiew PS4 przy szukaniu PS5)
     const finalOffersToAnalyze = offers.filter((offer) => {
       if (!offer.title) return false;
       const t = offer.title.toLowerCase();
@@ -62,14 +64,15 @@ export async function POST(req: Request) {
 
     const prompt = `
     Jesteś profesjonalnym rzeczoznawcą rynku e-commerce. Przeanalizuj listę ogłoszeń dla hasła: "${phrase}".
+    Dostałeś listę posortowaną od NAJTAŃSZYCH ofert w bazie danych. Twoim celem jest wyznaczenie realnego dołu rynku.
 
     BEZWZGLĘDNE ZASADY PODZIAŁU:
     1. Do "analyzed_offers" MUSISZ wrzucić każdą ofertę, która zawiera sprawną, główną konsolę / urządzenie główne. 
        - Zestawy z 1 padem, 2 padami, grami, dodatkami (np. podstawki, słuchawki, dyski, a nawet PS Portal) MAJĄ TU ZOSTAĆ.
        - Tytuły typu "Konsola PS5 PlayStation Pad" czy "PS 5 DIGITAL / GWARANCJA / 15 Gier" ABSOLUTNIE mają być uznane za poprawne oferty konsoli i trafić do "analyzed_offers"!
-       - W wycenie "estimated_market_value_pln" wylicz wartość samej konsoli (jeśli zestaw jest drogi, odejmij w pamięci wartość dodatków, aby nie zawyżać średniej).
+       - W wycenie "estimated_market_value_pln" podaj średnią cenę bazową (jeśli zestawy są drogie, odejmij w pamięci wartość dodatków, aby nie zawyżać średniej).
 
-    2. Do "rejected_offers" wrzucasz tylko czysty szum: same gry (np. FIFA 25), same akcesoria (pady kupowane osobno, stojaki), puste pudełka, uszkodzone konsole lub ewidentne błędy (ceny typu 800 zł za sprawną konsolę traktuj jako ogłoszenia archiwalne/błędne).
+    2. Do "rejected_offers" wrzucasz tylko czysty szum: same gry (np. FIFA 25), same akcesoria (pady kupowane osobno, stojaki), puste pudełka lub uszkodzony sprzęt. Odrzucaj też ewidentne błędy cenowe i ogłoszenia archiwalne (jeśli cena to np. 500 zł za sprawną konsolę, odrzuć z powodem "Oferta archiwalna / Błąd").
 
     Oferty do analizy:
     ${JSON.stringify(finalOffersToAnalyze, null, 2)}
@@ -84,7 +87,7 @@ export async function POST(req: Request) {
       "rejected_offers": [
         {"title": "Tytuł odrzuconej oferty", "reason": "Powód odrzucenia"}
       ],
-      "tips": "Krótka wskazówka"
+      "tips": "Krótka wskazówka o dole rynku"
     }
     `;
 
