@@ -19,7 +19,6 @@ export async function POST(req: Request) {
     const cleanPhrase = phrase.toLowerCase().trim();
     let supabaseQuery = supabase.from("offers").select("title, price, url");
 
-    // Jeśli szukamy PS5 lub pokrewnych, rozbijamy zapytanie na inteligentne słowa kluczowe
     if (cleanPhrase === "ps5" || cleanPhrase === "playstation 5" || cleanPhrase === "playstation5" || cleanPhrase === "konsola ps5") {
       supabaseQuery = supabaseQuery.or(
         "title.ilike.%ps5%," +
@@ -27,7 +26,6 @@ export async function POST(req: Request) {
         "title.ilike.%play station%"
       );
     } else {
-      // TypeScript Fix: Jawnie określamy typ (w: string) w funkcji filter
       const words = cleanPhrase.split(/\s+/).filter((w: string) => w.length > 1);
       if (words.length > 1) {
         const orFilters = words.map((word: string) => `title.ilike.%${word}%`).join(",");
@@ -37,8 +35,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // Zwiększamy limit do 100, żeby wyciągnąć absolutnie wszystko z bazy
-    const { data: offers, error: dbError } = await supabaseQuery.limit(100);
+    // Zwiększamy limit do 120 ofert, żeby mieć pełen obraz z bazy danych
+    const { data: offers, error: dbError } = await supabaseQuery.limit(120);
 
     if (dbError) throw dbError;
 
@@ -49,28 +47,35 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-    Jesteś profesjonalnym rzeczoznawcą wyceniającym sprzęt elektroniczny w e-commerce. 
-    Przeanalizuj poniższą listę ogłoszeń (tytuł, cena, url) zebranych dla hasła: "${phrase}".
+    Jesteś rygorystycznym systemem wyceniającym i kategoryzującym oferty e-commerce. 
+    Przeanalizuj listę ogłoszeń dla: "${phrase}".
 
-    Twoje kluczowe zadania:
-    1. WYCENA URZĄDZENIA GŁÓWNEGO: Chcemy poznać średnią rynkową wartość SAMEJ KONSOLI / SAMEGO URZĄDZENIA.
-    2. OBSŁUGA BOGATYCH ZESTAWÓW: Jeśli na liście jest oferta z konsolą i masą dodatków (pady, gry, akcesoria), absolutnie jej NIE odrzucaj! Dorzuć ją do listy "analyzed_offers". Jednak przy obliczaniu końcowej ceny rynkowej ("estimated_market_value_pln") odejmij w pamięci szacowaną wartość tych wielkich dodatków, tak aby ten jeden drogi zestaw nie zawyżył nienaturalnie ceny zwykłej konsoli.
-    3. SELEKCJA SZUMU: Do sekcji "rejected_offers" odsyłaj TYLKO i WYŁĄCZNIE rzeczy, które NIE SĄ urządzeniem głównym (np. same gry, same stojaki, puste pudełka, kable, pady sprzedawane osobno lub sprzęt uszkodzony).
+    BEZWZGLĘDNE ZASADY KATEGORYZACJI (ZAKAZ SAMOWOLKI AI):
+
+    1. CO MUSISZ ZAAKCEPTOWAĆ (w "analyzed_offers"):
+       - Każde ogłoszenie, które zawiera w tytule fizyczną konsolę (np. PS5, PlayStation 5, Digital, Slim), NAWET jeśli w zestawie jest 5, 10 czy 15 gier, dodatkowe pady, słuchawki, podstawki czy gwarancja. 
+       - Przykład: "PS 5 DIGITAL / GWARANCJA / 15 Gier" -> MA BYĆ W "analyzed_offers".
+       - Jeśli cena takiego dużego zestawu jest wysoka, weź ją do analizy, ale w polu "estimated_market_value_pln" oblicz wartość czystej konsoli (odejmując w pamięci rynkową wartość tych gier/akcesoriów).
+
+    2. CO MOŻESZ ODRZUCIĆ (w "rejected_offers"):
+       - TYLKO oferty, które NIE ZAWIERAJĄ konsoli. Czyli: same gry (np. "Wiedźmin 3 PS5"), same pady, same kable, uszkodzone konsole (na części), puste pudełka, usługi naprawy.
+
+    Jeżeli w tytule jest sprawna konsola + masa dodatków, masz OBOWIĄZEK dodać ją do "analyzed_offers".
 
     Oferty do analizy:
     ${JSON.stringify(offers, null, 2)}
 
-    Zwróć wynik WYŁĄCZNIE jako czysty, poprawny format JSON (bez markdownu):
+    Zwróć wynik WYŁĄCZNIE jako czysty, poprawny format JSON:
     {
-      "main_product_name": "Precyzyjna nazwa produktu (np. Sony PlayStation 5)",
-      "estimated_market_value_pln": 1500,
+      "main_product_name": "Precyzyjna nazwa produktu (np. Sony PlayStation 5 Digital)",
+      "estimated_market_value_pln": 1450,
       "analyzed_offers": [
-        {"title": "Tytuł oferty", "price": 1650, "url": "url_oferty"}
+        {"title": "Tytuł oferty (tutaj lądują też zestawy z grami)", "price": 1600, "url": "url_oferty"}
       ],
       "rejected_offers": [
-        {"title": "Tytuł odrzuconego szumu", "reason": "Sama gra / Akcesorium"}
+        {"title": "Tytuł odrzucenia (np. Pad PS5 DualSense)", "reason": "Sprzedaż samego akcesorium"}
       ],
-      "tips": "Krótkie uzasadnienie ceny (np. uwzględniono korektę na zestawy z dodatkami)"
+      "tips": "Krótkie uzasadnienie (np. Uwzględniono zestawy z grami, korygując ich wpływ na cenę bazową)"
     }
     `;
 
