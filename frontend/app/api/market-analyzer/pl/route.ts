@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import Groq from "groq-sdk";
 
-// Bezpieczna inicjalizacja (zapobiega wywaleniu buildu na Vercelu przy braku zmiennych)
 const supabaseUrl = process.env.SUPABASE_URL || "https://placeholder-url.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || "placeholder-key";
 
@@ -11,18 +10,16 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "placeholder" });
 
 export async function POST(req: Request) {
   try {
-    const { phrase, targetRoi } = await req.json();
+    const { phrase } = await req.json();
 
     if (!phrase) {
       return NextResponse.json({ error: "Fraza jest wymagana" }, { status: 400 });
     }
 
-    const roiMultiplier = 1 - (targetRoi || 30) / 100;
-
-    // Pobranie ostatnich 40 ogłoszeń dla rynku polskiego z bazy Supabase
+    // Pobranie ofert (zmieniono price_pln na bezpieczne price)
     const { data: offers, error: dbError } = await supabase
       .from("offers")
-      .select("title, price_pln")
+      .select("title, price")
       .ilike("title", `%${phrase}%`)
       .order("created_at", { ascending: false })
       .limit(40);
@@ -36,7 +33,7 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-    Jesteś ekspertem analizy rynku e-commerce. Przeanalizuj poniższe oferty (tytuł i cena w PLN) dla przedmiotu: "${phrase}".
+    Jesteś ekspertem analizy rynku e-commerce. Przeanalizuj poniższe oferty (tytuł i cena) dla przedmiotu: "${phrase}".
     Twoim zadaniem jest odrzucenie szumu (np. akcesoria, uszkodzone, pudełka, inne przedmioty) i kalkulacja realnej wartości rynkowej głównego przedmiotu.
 
     Oferty do analizy:
@@ -61,9 +58,6 @@ export async function POST(req: Request) {
 
     const aiResponseText = chatCompletion.choices[0]?.message?.content || "{}";
     const result = JSON.parse(aiResponseText);
-
-    // Wyliczenie progu maksymalnego zakupu na podstawie marży podanej przez użytkownika
-    result.max_buy_price_pln = Math.round(result.estimated_market_value_pln * roiMultiplier);
 
     return NextResponse.json(result);
   } catch (error: any) {
