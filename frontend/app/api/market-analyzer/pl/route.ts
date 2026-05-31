@@ -27,10 +27,10 @@ export async function POST(req: Request) {
         "title.ilike.%play station%"
       );
     } else {
-      // Dla każdego innego przedmiotu rozbijamy frazę po spacjach na wypadek innej kolejności słów
-      const words = cleanPhrase.split(/\s+/).filter(w => w.length > 1);
+      // TypeScript Fix: Jawnie określamy typ (w: string) w funkcji filter
+      const words = cleanPhrase.split(/\s+/).filter((w: string) => w.length > 1);
       if (words.length > 1) {
-        const orFilters = words.map(word => `title.ilike.%${word}%`).join(",");
+        const orFilters = words.map((word: string) => `title.ilike.%${word}%`).join(",");
         supabaseQuery = supabaseQuery.or(orFilters);
       } else {
         supabaseQuery = supabaseQuery.ilike("title", `%${phrase}%`);
