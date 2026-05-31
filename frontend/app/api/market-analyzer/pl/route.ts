@@ -47,10 +47,10 @@ export async function POST(req: Request) {
     }
     `;
 
-    // ZMIANA MODELU NA AKTUALNY
+    // STABILNY MODEL ZAKOTWICZONY NA STAŁE W GROQ
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-specdec",
+      model: "llama-3.3-70b-versatile",
       temperature: 0.1,
       response_format: { type: "json_object" },
     });
