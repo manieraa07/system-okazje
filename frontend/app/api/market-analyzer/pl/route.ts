@@ -16,42 +16,56 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Fraza jest wymagana" }, { status: 400 });
     }
 
-    const { data: offers, error: dbError } = await supabase
-      .from("offers")
-      .select("title, price")
-      .ilike("title", `%${phrase}%`)
-      .limit(40);
+    // Zaawansowane szukanie wariacji (rozwiązuje problem małej liczby ofert)
+    let queryFilter = `%${phrase}%`;
+    if (phrase.toLowerCase() === "ps5" || phrase.toLowerCase() === "playstation 5") {
+      // Jeśli szukasz PS5, złapmy wszystkie możliwe odmiany z bazy
+      queryFilter = "%ps5%,%playstation 5%,%playstation5%";
+    }
+
+    let supabaseQuery = supabase.from("offers").select("title, price, url"); // Pobieramy też link url
+
+    if (queryFilter.includes(",")) {
+      const parts = queryFilter.split(",").map(p => `title.ilike.${p}`);
+      supabaseQuery = supabaseQuery.or(parts.join(","));
+    } else {
+      supabaseQuery = supabaseQuery.ilike("title", queryFilter);
+    }
+
+    const { data: offers, error: dbError } = await supabaseQuery.limit(60);
 
     if (dbError) throw dbError;
 
     if (!offers || offers.length === 0) {
       return NextResponse.json({
-        error: `Nie znaleziono w bazie żadnych ofert pasujących do frazy: "${phrase}"`,
+        error: `Nie znaleziono w bazie ofert dla frazy: "${phrase}"`,
       }, { status: 404 });
     }
 
     const prompt = `
-    Jesteś ekspertowym systemem analizy cen e-commerce. Przeanalizuj listę ogłoszeń dla hasła: "${phrase}".
-    Twój cel: Wyliczyć realną wartość rynkową sprawnych, głównych przedmiotów.
+    Jesteś zaawansowanym rzeczoznawcą rynku e-commerce. Przeanalizuj listę ofert dla: "${phrase}".
+    Twój cel: Wyznaczyć realną, bazową wartość rynkową SAMEGO URZĄDZENIA GŁÓWNEGO w standardowym zestawie (np. konsola + 1 pad).
 
-    ZASADY SELEKCJI:
-    1. AKCEPTUJ i bierz do kalkulacji: Główne przedmioty (np. całe konsole, odkurzacze), również jeśli są w zestawie z grami, dodatkowymi padami czy akcesoriami! Zestawy podnoszą lub stabilizują wartość, nie odrzucaj ich, jeśli zawierają sprawny główny produkt.
-    2. ODRZUCAJ (jako szum): Same akcesoria (stojaki, kable), same gry (np. "Fifa 23 ps5"), puste pudełka, usługi naprawy/wymiany, przedmioty uszkodzone/na części.
+    ZASADA SPRAWIEDLIWEJ WYCENY (BARDZO WAŻNE):
+    Jeśli oferta to potężny zestaw (np. Konsola + PS Portal + Dysk 2TB + 2 Pady) i kosztuje dużo więcej, NIE odrzucaj jej. 
+    Zamiast tego w pamięci ODEJMIJ wartość tych drogich dodatków, aby oszacować, ile z tej kwoty przypada na samą konsolę, i tę skorygowaną wartość weź pod uwagę przy wyliczaniu średniej rynkowej. Nie pozwól, aby bogate zestawy sztucznie zawyżyły końcową cenę bazową!
+
+    SELEKCJA SZUMU: Odrzucaj wyłącznie akcesoria, same gry, puste pudełka lub sprzęt uszkodzony.
 
     Oferty do analizy:
     ${JSON.stringify(offers, null, 2)}
 
-    Zwróć wynik WYŁĄCZNIE jako czysty format JSON (bez markdownu, bez \`\`\`json), posiadający dokładnie taką strukturę:
+    Zwróć wynik WYŁĄCZNIE jako czysty format JSON (bez markdownu):
     {
-      "main_product_name": "Precyzyjna nazwa produktu (np. Sony PlayStation 5)",
-      "estimated_market_value_pln": 1650,
+      "main_product_name": "Precyzyjna nazwa wycenianego urządzenia rynkowego",
+      "estimated_market_value_pln": 1400,
       "analyzed_offers": [
-        {"title": "Tytuł oferty włączonej do analizy", "price": 1600}
+        {"title": "Tytuł oferty", "price": 1450, "url": "link_z_bazy_danych"}
       ],
       "rejected_offers": [
-        {"title": "Tytuł oferty odrzuconej jako szum", "reason": "Powód odrzucenia (np. sama gra / uszkodzone)"}
+        {"title": "Tytuł odrzuconej oferty", "reason": "Powód odrzucenia"}
       ],
-      "tips": "Krótka wskazówka dotycząca cen tego produktu"
+      "tips": "Krótka analiza dlaczego taka cena (np. uwzględniłem korektę na zestawy z portalami/dyskami)"
     }
     `;
 
@@ -67,7 +81,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error("Błąd handlera PL:", error);
-    return NextResponse.json({ error: error.message || "Błąd wewnętrzny serwera" }, { status: 500 });
+    console.error(error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
