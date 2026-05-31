@@ -31,23 +31,30 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-    Jesteś ekspertem analizy rynku e-commerce. Przeanalizuj poniższe oferty (tytuł i cena) dla przedmiotu: "${phrase}".
-    Twoim zadaniem jest odrzucenie szumu (np. akcesoria, uszkodzone, pudełka, inne przedmioty) i kalkulacja realnej wartości rynkowej głównego przedmiotu.
+    Jesteś ekspertowym systemem analizy cen e-commerce. Przeanalizuj listę ogłoszeń dla hasła: "${phrase}".
+    Twój cel: Wyliczyć realną wartość rynkową sprawnych, głównych przedmiotów.
+
+    ZASADY SELEKCJI:
+    1. AKCEPTUJ i bierz do kalkulacji: Główne przedmioty (np. całe konsole, odkurzacze), również jeśli są w zestawie z grami, dodatkowymi padami czy akcesoriami! Zestawy podnoszą lub stabilizują wartość, nie odrzucaj ich, jeśli zawierają sprawny główny produkt.
+    2. ODRZUCAJ (jako szum): Same akcesoria (stojaki, kable), same gry (np. "Fifa 23 ps5"), puste pudełka, usługi naprawy/wymiany, przedmioty uszkodzone/na części.
 
     Oferty do analizy:
     ${JSON.stringify(offers, null, 2)}
 
-    Zwróć wynik WYŁĄCZNIE jako czysty format JSON (bez markdownu, bez \`\`\`json), posiadający dokładnie te pola:
+    Zwróć wynik WYŁĄCZNIE jako czysty format JSON (bez markdownu, bez \`\`\`json), posiadający dokładnie taką strukturę:
     {
-      "main_product_name": "Precyzyjna nazwa analizowanego produktu głównego",
-      "estimated_market_value_pln": 1250, 
-      "sample_size_evaluated": 15,
-      "detected_noise": ["Tytuł oferty 1 - powód odrzucenia", "Tytuł oferty 2 - powód"],
-      "tips": "Krótka wskazówka dla tradera dotycząca tego produktu"
+      "main_product_name": "Precyzyjna nazwa produktu (np. Sony PlayStation 5)",
+      "estimated_market_value_pln": 1650,
+      "analyzed_offers": [
+        {"title": "Tytuł oferty włączonej do analizy", "price": 1600}
+      ],
+      "rejected_offers": [
+        {"title": "Tytuł oferty odrzuconej jako szum", "reason": "Powód odrzucenia (np. sama gra / uszkodzone)"}
+      ],
+      "tips": "Krótka wskazówka dotycząca cen tego produktu"
     }
     `;
 
-    // STABILNY MODEL ZAKOTWICZONY NA STAŁE W GROQ
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
       model: "llama-3.3-70b-versatile",
