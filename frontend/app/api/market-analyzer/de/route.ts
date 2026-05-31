@@ -16,7 +16,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Suchbegriff ist erforderlich" }, { status: 400 });
     }
 
-    // Bezpieczne pobieranie ofert dla rynku DE bez sortowania po dacie
     const { data: offers, error: dbError } = await supabase
       .from("offers_de")
       .select("title, price")
@@ -48,9 +47,10 @@ export async function POST(req: Request) {
     }
     `;
 
+    // ZMIANA MODELU NA AKTUALNY
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
-      model: "llama3-8b-8192",
+      model: "llama-3.3-70b-specdec",
       temperature: 0.1,
       response_format: { type: "json_object" },
     });
