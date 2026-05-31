@@ -16,12 +16,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Suchbegriff ist erforderlich" }, { status: 400 });
     }
 
-    // Pobranie ofert (zmieniono price_eur na bezpieczne price)
+    // Bezpieczne pobieranie ofert dla rynku DE bez sortowania po dacie
     const { data: offers, error: dbError } = await supabase
       .from("offers_de")
       .select("title, price")
       .ilike("title", `%${phrase}%`)
-      .order("created_at", { ascending: false })
       .limit(40);
 
     if (dbError) throw dbError;
