@@ -16,19 +16,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Fraza jest wymagana" }, { status: 400 });
     }
 
-    // 1. Uniwersalne rozbicie szukanej frazy na pojedyncze słowa kluczowe (dla PS5, Dysona, czegokolwiek)
+    // 1. Uniwersalne rozbicie szukanej frazy na pojedyncze słowa kluczowe
     const searchWords = phrase
       .toLowerCase()
       .trim()
       .split(/\s+/)
       .filter((w: string) => w.length > 1);
 
-    // Skróty i synonimy uniwersalne dla popularnych sprzętów (rozbudowywalne)
+    // Synonimy uniwersalne dla popularnych sprzętów
     if (searchWords.includes("ps5")) {
       searchWords.push("playstation");
     }
 
-    // 2. Pobieramy dużą paczkę surowych danych (250 ofert), żeby mieć pewność, że nic nie umknie
+    // 2. Pobieramy dużą paczkę surowych danych (250 ofert)
     const { data: allOffers, error: dbError } = await supabase
       .from("offers")
       .select("title, price, url")
@@ -40,13 +40,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Baza danych ofert jest pusta." }, { status: 404 });
     }
 
-    // 3. Zaawansowane dopasowanie w JavaScript (odporne na wielkość liter i kolejność słów)
+    // 3. Zaawansowane dopasowanie w JavaScript z jawnym typowaniem (word: string)
     const filteredOffers = allOffers.filter((offer) => {
       if (!offer.title) return false;
       const titleLower = offer.title.toLowerCase();
       
-      // Oferta pasuje, jeśli zawiera CHOĆ JEDNO z szukanych słów (elastyczność maksymalna)
-      return searchWords.some((word) => titleLower.includes(word));
+      // TypeScript Fix: Jawnie wskazujemy typ string dla parametru word
+      return searchWords.some((word: string) => titleLower.includes(word));
     });
 
     if (filteredOffers.length === 0) {
