@@ -537,6 +537,21 @@ export default function OffersTable() {
 
         <span className="text-[11px] text-zinc-600 ml-auto">{filtered.length} ofert</span>
 
+        {/* ================= TUTAJ WCHODZI NOWA IKONKA ANALYZERA ================= */}
+        <a
+          href="/pl/analyzer"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/40 transition-all shadow-sm"
+          title="Uruchom analizator cen rynkowych Groq AI"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span>Analyzer</span>
+        </a>
+        {/* ======================================================================= */}
+
         <button
           onClick={() => setDrawerOpen(true)}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs text-zinc-400 hover:text-white hover:border-white/20 transition-all"
