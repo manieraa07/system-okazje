@@ -3,3 +3,41 @@
 @tailwind utilities;
 
 html, body { background: #0b0f17; color: #e5e7eb; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-16px); }
+}
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50%       { opacity: 0.25; transform: scale(1.05); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
+}
+
+.animate-fade-in    { animation: fadeIn 0.5s ease forwards; }
+.animate-fade-out   { animation: fadeOut 0.4s ease forwards; }
+.animate-slide-up   { animation: slideUp 0.6s ease forwards; }
+.animate-gradient   { animation: gradientShift 8s ease infinite; background-size: 200% 200%; }
+.animate-pulse-slow { animation: pulse-slow 6s ease-in-out infinite; }
+.animate-shimmer    { animation: shimmer 2s linear infinite; background-size: 200% 100%; }
+
+.delay-100 { animation-delay: 0.1s; opacity: 0; }
+.delay-200 { animation-delay: 0.2s; opacity: 0; }
+.delay-300 { animation-delay: 0.3s; opacity: 0; }
+.delay-400 { animation-delay: 0.4s; opacity: 0; }
