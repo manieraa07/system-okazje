@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import Groq from "groq-sdk";
 
-// Bezpieczna inicjalizacja (zapobiega wywaleniu buildu na Vercelu przy braku zmiennych)
 const supabaseUrl = process.env.SUPABASE_URL || "https://placeholder-url.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || "placeholder-key";
 
@@ -11,18 +10,16 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "placeholder" });
 
 export async function POST(req: Request) {
   try {
-    const { phrase, targetRoi } = await req.json();
+    const { phrase } = await req.json();
 
     if (!phrase) {
       return NextResponse.json({ error: "Suchbegriff ist erforderlich" }, { status: 400 });
     }
 
-    const roiMultiplier = 1 - (targetRoi || 30) / 100;
-
-    // Pobranie ostatnich 40 ogłoszeń dla rynku niemieckiego z bazy Supabase
+    // Pobranie ofert (zmieniono price_eur na bezpieczne price)
     const { data: offers, error: dbError } = await supabase
       .from("offers_de")
-      .select("title, price_eur")
+      .select("title, price")
       .ilike("title", `%${phrase}%`)
       .order("created_at", { ascending: false })
       .limit(40);
@@ -36,7 +33,7 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-    Du bist ein Experte für E-Commerce-Marktanalysen. Analysiere die folgenden Angebote (Titel und Preis in EUR) für das Produkt: "${phrase}".
+    Du bist ein Experte für E-Commerce-Marktanalysen. Analysiere die folgenden Angebote (Titel und Preis) für das Produkt: "${phrase}".
     Deine Aufgabe ist es, Rauschen (z. B. Zubehör, defekte Artikel, Boxen, andere Produkte) zu filtern und den tatsächlichen Marktwert des Hauptartikels zu berechnen.
 
     Angebote zur Analyse:
@@ -61,9 +58,6 @@ export async function POST(req: Request) {
 
     const aiResponseText = chatCompletion.choices[0]?.message?.content || "{}";
     const result = JSON.parse(aiResponseText);
-
-    // Wyliczenie progu maksymalnego zakupu w Euro na podstawie marży użytkownika
-    result.max_buy_price_eur = Math.round(result.estimated_market_value_eur * roiMultiplier);
 
     return NextResponse.json(result);
   } catch (error: any) {
