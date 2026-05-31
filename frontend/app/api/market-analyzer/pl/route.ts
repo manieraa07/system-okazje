@@ -16,66 +16,75 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Fraza jest wymagana" }, { status: 400 });
     }
 
-    const cleanPhrase = phrase.toLowerCase().trim();
-    let supabaseQuery = supabase.from("offers").select("title, price, url");
+    // 1. Uniwersalne rozbicie szukanej frazy na pojedyncze słowa kluczowe (dla PS5, Dysona, czegokolwiek)
+    const searchWords = phrase
+      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .filter((w: string) => w.length > 1);
 
-    if (cleanPhrase === "ps5" || cleanPhrase === "playstation 5" || cleanPhrase === "playstation5" || cleanPhrase === "konsola ps5") {
-      supabaseQuery = supabaseQuery.or(
-        "title.ilike.%ps5%," +
-        "title.ilike.%playstation%," +
-        "title.ilike.%play station%"
-      );
-    } else {
-      const words = cleanPhrase.split(/\s+/).filter((w: string) => w.length > 1);
-      if (words.length > 1) {
-        const orFilters = words.map((word: string) => `title.ilike.%${word}%`).join(",");
-        supabaseQuery = supabaseQuery.or(orFilters);
-      } else {
-        supabaseQuery = supabaseQuery.ilike("title", `%${phrase}%`);
-      }
+    // Skróty i synonimy uniwersalne dla popularnych sprzętów (rozbudowywalne)
+    if (searchWords.includes("ps5")) {
+      searchWords.push("playstation");
     }
 
-    // Zwiększamy limit do 120 ofert, żeby mieć pełen obraz z bazy danych
-    const { data: offers, error: dbError } = await supabaseQuery.limit(120);
+    // 2. Pobieramy dużą paczkę surowych danych (250 ofert), żeby mieć pewność, że nic nie umknie
+    const { data: allOffers, error: dbError } = await supabase
+      .from("offers")
+      .select("title, price, url")
+      .limit(250);
 
     if (dbError) throw dbError;
 
-    if (!offers || offers.length === 0) {
+    if (!allOffers || allOffers.length === 0) {
+      return NextResponse.json({ error: "Baza danych ofert jest pusta." }, { status: 404 });
+    }
+
+    // 3. Zaawansowane dopasowanie w JavaScript (odporne na wielkość liter i kolejność słów)
+    const filteredOffers = allOffers.filter((offer) => {
+      if (!offer.title) return false;
+      const titleLower = offer.title.toLowerCase();
+      
+      // Oferta pasuje, jeśli zawiera CHOĆ JEDNO z szukanych słów (elastyczność maksymalna)
+      return searchWords.some((word) => titleLower.includes(word));
+    });
+
+    if (filteredOffers.length === 0) {
       return NextResponse.json({
-        error: `Nie znaleziono w bazie ofert dla frazy: "${phrase}"`,
+        error: `Nie znaleziono w bazie ofert pasujących do kryteriów: "${phrase}"`,
       }, { status: 404 });
     }
+
+    // 4. Przekazujemy przefiltrowaną listę (maksymalnie 100 sztuk) do sztucznej inteligencji
+    const finalOffersToAnalyze = filteredOffers.slice(0, 100);
 
     const prompt = `
     Jesteś rygorystycznym systemem wyceniającym i kategoryzującym oferty e-commerce. 
     Przeanalizuj listę ogłoszeń dla: "${phrase}".
 
-    BEZWZGLĘDNE ZASADY KATEGORYZACJI (ZAKAZ SAMOWOLKI AI):
+    BEZWZGLĘDNE ZASADY ANALIZY:
+    1. ODSYŁANIE DO "analyzed_offers" (URZĄDZENIA GŁÓWNE):
+       - Masz obowiązek zaakceptować każde ogłoszenie, które sprzedaje działający przedmiot główny (np. konsola, odkurzacz, telefon), niezależnie od tego czy jest sprzedawany sam, czy w gigantycznym zestawie z dodatkami (np. z 15 grami, dodatkowymi padami, akcesoriami).
+       - Jeśli cena zestawu jest wysoka, uwzględnij ofertę, ale w polu "estimated_market_value_pln" oblicz realną, skorygowaną cenę bazową samego urządzenia (odejmując w pamięci wartość dodatków).
 
-    1. CO MUSISZ ZAAKCEPTOWAĆ (w "analyzed_offers"):
-       - Każde ogłoszenie, które zawiera w tytule fizyczną konsolę (np. PS5, PlayStation 5, Digital, Slim), NAWET jeśli w zestawie jest 5, 10 czy 15 gier, dodatkowe pady, słuchawki, podstawki czy gwarancja. 
-       - Przykład: "PS 5 DIGITAL / GWARANCJA / 15 Gier" -> MA BYĆ W "analyzed_offers".
-       - Jeśli cena takiego dużego zestawu jest wysoka, weź ją do analizy, ale w polu "estimated_market_value_pln" oblicz wartość czystej konsoli (odejmując w pamięci rynkową wartość tych gier/akcesoriów).
-
-    2. CO MOŻESZ ODRZUCIĆ (w "rejected_offers"):
-       - TYLKO oferty, które NIE ZAWIERAJĄ konsoli. Czyli: same gry (np. "Wiedźmin 3 PS5"), same pady, same kable, uszkodzone konsole (na części), puste pudełka, usługi naprawy.
-
-    Jeżeli w tytule jest sprawna konsola + masa dodatków, masz OBOWIĄZEK dodać ją do "analyzed_offers".
+    2. ODSYŁANIE DO "rejected_offers" (CZYSTY SZUM I BŁĘDY):
+       - Odrzucaj oferty, które NIE są przedmiotem głównym (same gry, same akcesoria, pudełka, kable, części).
+       - BARDZO WAŻNE: Odrzucaj oferty, które są oczywistym błędem skrapera, ogłoszeniami archiwalnymi, ofertami typu "KUPIĘ / ZAMIENIĘ" lub oszustwami (np. cena 850 zł za sprawną konsolę PS5, podczas gdy inne kosztują 1400+ zł, to oczywisty błąd/niedostępna oferta). Wpisz powód: "Oferta archiwalna / Podejrzanie niska cena".
 
     Oferty do analizy:
-    ${JSON.stringify(offers, null, 2)}
+    ${JSON.stringify(finalOffersToAnalyze, null, 2)}
 
     Zwróć wynik WYŁĄCZNIE jako czysty, poprawny format JSON:
     {
-      "main_product_name": "Precyzyjna nazwa produktu (np. Sony PlayStation 5 Digital)",
+      "main_product_name": "Precyzyjna nazwa produktu rynkowego",
       "estimated_market_value_pln": 1450,
       "analyzed_offers": [
-        {"title": "Tytuł oferty (tutaj lądują też zestawy z grami)", "price": 1600, "url": "url_oferty"}
+        {"title": "Tytuł oferty", "price": 1600, "url": "url_oferty"}
       ],
       "rejected_offers": [
-        {"title": "Tytuł odrzucenia (np. Pad PS5 DualSense)", "reason": "Sprzedaż samego akcesorium"}
+        {"title": "Tytuł odrzuconej oferty", "reason": "Powód odrzucenia (np. Sama gra / Oferta archiwalna / Podejrzana cena)"}
       ],
-      "tips": "Krótkie uzasadnienie (np. Uwzględniono zestawy z grami, korygując ich wpływ na cenę bazową)"
+      "tips": "Krótkie podsumowanie analizy cenowej"
     }
     `;
 
