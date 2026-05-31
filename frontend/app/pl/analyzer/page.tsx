@@ -3,11 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 
+interface EvaluatedOffer {
+  title: string;
+  price: number;
+}
+
+interface RejectedOffer {
+  title: string;
+  reason: string;
+}
+
 interface AnalysisResult {
   main_product_name: string;
   estimated_market_value_pln: number;
-  sample_size_evaluated: number;
-  detected_noise?: string[];
+  analyzed_offers?: EvaluatedOffer[];
+  rejected_offers?: RejectedOffer[];
   tips?: string;
 }
 
@@ -16,12 +26,14 @@ export default function PolishMarketAnalyzerPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
+  const [showNoise, setShowNoise] = useState(false);
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setResult(null);
+    setShowNoise(false);
 
     try {
       const response = await fetch("/api/market-analyzer/pl", {
@@ -42,8 +54,9 @@ export default function PolishMarketAnalyzerPage() {
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-[#c9d1d9] p-6 font-sans">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         
+        {/* Header */}
         <div className="flex items-center justify-between mb-8 border-b border-[#30363d] pb-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
@@ -51,18 +64,15 @@ export default function PolishMarketAnalyzerPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white tracking-tight">Market Analyzer (PLN)</h1>
-              <p className="text-xs text-gray-400">Szybka wycena realnej wartości rynkowej przez Groq AI</p>
+              <p className="text-xs text-gray-400">Analiza cen na polskim rynku przez Groq AI</p>
             </div>
           </div>
-          
-          <Link 
-            href="/pl" 
-            className="flex items-center gap-2 bg-[#161b22] hover:bg-[#21262d] text-gray-300 border border-[#30363d] rounded-lg px-4 py-2 text-xs font-semibold transition-colors"
-          >
+          <Link href="/pl" className="flex items-center gap-2 bg-[#161b22] hover:bg-[#21262d] text-gray-300 border border-[#30363d] rounded-lg px-4 py-2 text-xs font-semibold transition-colors">
             ← Wróć do ofert
           </Link>
         </div>
 
+        {/* Formularz */}
         <form onSubmit={handleAnalyze} className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 mb-6 shadow-xl">
           <div className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-1 w-full">
@@ -77,12 +87,8 @@ export default function PolishMarketAnalyzerPage() {
               />
             </div>
             <div className="w-full sm:w-auto">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white text-sm font-semibold px-6 py-2 rounded-lg transition-colors shadow-lg whitespace-nowrap"
-              >
-                {loading ? "Analizuję rynek..." : "Sprawdź wartość (zł)"}
+              <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white text-sm font-semibold px-6 py-2 rounded-lg transition-colors shadow-lg">
+                {loading ? "Analizuję..." : "Sprawdź wartość"}
               </button>
             </div>
           </div>
@@ -90,31 +96,70 @@ export default function PolishMarketAnalyzerPage() {
 
         {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-lg text-xs mb-6">{error}</div>}
 
+        {/* Karta Wyników */}
         {result && (
-          <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-xl">
-            <div className="mb-4">
-              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Raport cenowy</span>
-              <h2 className="text-lg font-bold text-white mt-2">{result.main_product_name}</h2>
-              <p className="text-[11px] text-gray-400">Wycena wyliczona na podstawie {result.sample_size_evaluated} ostatnich ogłoszeń z bazy.</p>
-            </div>
+          <div className="space-y-6">
+            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-xl">
+              <div className="mb-4">
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Raport cenowy</span>
+                <h2 className="text-xl font-bold text-white mt-2">{result.main_product_name}</h2>
+              </div>
 
-            <div className="mb-5">
-              <div className="bg-[#0d1117] border border-emerald-500/20 p-5 rounded-lg text-center sm:text-left">
+              <div className="bg-[#0d1117] border border-emerald-500/20 p-5 rounded-lg text-center mb-4">
                 <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Szacowana wartość rynkowa</span>
                 <div className="text-3xl font-extrabold text-emerald-400 mt-1">{result.estimated_market_value_pln} PLN</div>
               </div>
+
+              {result.tips && <div className="text-xs text-gray-400 bg-[#0d1117] p-3 border border-[#30363d] rounded-lg"><span className="font-semibold text-gray-200">Wskazówka AI:</span> {result.tips}</div>}
             </div>
 
-            {result.detected_noise && result.detected_noise.length > 0 && (
-              <div className="mb-4 bg-[#0d1117] p-3 rounded-lg border border-[#30363d]">
-                <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Odrzucone ogłoszenia (szum / akcesoria):</h4>
-                <ul className="list-disc pl-4 text-[11px] text-gray-500 space-y-0.5">
-                  {result.detected_noise.map((n, i) => <li key={i}>{n}</li>)}
-                </ul>
+            {/* Sekcja 1: Przeanalizowane oferty (Zawsze widoczne) */}
+            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 shadow-xl">
+              <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                <span className="w-2 height-2 h-2 w-2 rounded-full bg-emerald-400 inline-block"></span>
+                Przeanalizowane ogłoszenia ({result.analyzed_offers?.length || 0})
+              </h3>
+              <div className="max-h-64 overflow-y-auto space-y-2 pr-1 border border-[#30363d] rounded-lg p-3 bg-[#0d1117]">
+                {result.analyzed_offers && result.analyzed_offers.length > 0 ? (
+                  result.analyzed_offers.map((offer, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs py-1 border-b border-[#21262d] last:border-0 gap-4">
+                      <span className="text-gray-300 truncate">{offer.title}</span>
+                      <span className="font-semibold text-emerald-400 shrink-0">{offer.price} PLN</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500">Brak ofert w kalkulacji.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Sekcja 2: Szum / Odrzucone (Wysuwane menu / Accordion) */}
+            {result.rejected_offers && result.rejected_offers.length > 0 && (
+              <div className="bg-[#161b22] border border-[#30363d] rounded-xl overflow-hidden shadow-xl">
+                <button 
+                  type="button"
+                  onClick={() => setShowNoise(!showNoise)}
+                  className="w-full flex items-center justify-between p-4 text-sm font-semibold text-gray-400 hover:bg-[#21262d] transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-red-400/70 inline-block"></span>
+                    Odrzucone ogłoszenia / Szum ({result.rejected_offers.length})
+                  </span>
+                  <span>{showNoise ? "▲ Ukryj" : "▼ Rozwiń"}</span>
+                </button>
+                
+                {showNoise && (
+                  <div className="p-4 bg-[#0d1117] border-t border-[#30363d] max-h-64 overflow-y-auto space-y-2">
+                    {result.rejected_offers.map((offer, idx) => (
+                      <div key={idx} className="text-xs py-1.5 border-b border-[#21262d] last:border-0 flex flex-col sm:flex-row sm:justify-between gap-1">
+                        <span className="text-gray-500 truncate">{offer.title}</span>
+                        <span className="text-[10px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded border border-red-500/20 shrink-0 sm:self-center font-mono">{offer.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-
-            {result.tips && <div className="border-t border-[#30363d] pt-3 text-[11px] text-gray-400"><span className="font-semibold text-gray-300">Wskazówka AI:</span> {result.tips}</div>}
           </div>
         )}
       </div>
