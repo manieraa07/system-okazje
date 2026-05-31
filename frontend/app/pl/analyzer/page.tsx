@@ -28,6 +28,7 @@ export default function PolishMarketAnalyzerPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
   const [showNoise, setShowNoise] = useState(false);
+  const [sortByPrice, setSortByPrice] = useState(false); // Stan sortowania cenowego
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +60,16 @@ export default function PolishMarketAnalyzerPage() {
     if (url.includes("allegro")) return <span className="text-[9px] bg-orange-500/10 text-orange-400 border border-orange-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Allegro</span>;
     if (url.includes("ebay")) return <span className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-1.5 py-0.5 rounded font-bold uppercase">eBay</span>;
     return <span className="text-[9px] bg-gray-500/10 text-gray-400 border border-gray-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Link</span>;
+  };
+
+  // Logika sortowania ofert
+  const getProcessedOffers = () => {
+    if (!result?.analyzed_offers) return [];
+    const offersCopy = [...result.analyzed_offers];
+    if (sortByPrice) {
+      return offersCopy.sort((a, b) => a.price - b.price); // Sortowanie od najtańszych
+    }
+    return offersCopy;
   };
 
   return (
@@ -117,14 +128,35 @@ export default function PolishMarketAnalyzerPage() {
               {result.tips && <div className="text-xs text-gray-400 bg-[#0d1117] p-3 border border-[#30363d] rounded-lg"><span className="font-semibold text-gray-200">Uzasadnienie kalkulacji:</span> {result.tips}</div>}
             </div>
 
-            {/* Lista Ofert z Linkami */}
+            {/* Lista Ofert z Linkami i Sortowaniem */}
             <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 shadow-xl">
-              <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block"></span>
-                Uwzględnione w kalkulacji ({result.analyzed_offers?.length || 0})
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 inline-block"></span>
+                  Uwzględnione w kalkulacji ({result.analyzed_offers?.length || 0})
+                </h3>
+                
+                {/* Przyciski sortowania */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSortByPrice(false)}
+                    className={`px-3 py-1 text-[11px] font-semibold rounded border transition-colors ${!sortByPrice ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-[#0d1117] text-gray-400 border-[#30363d] hover:bg-[#21262d]'}`}
+                  >
+                    Domyślne
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortByPrice(true)}
+                    className={`px-3 py-1 text-[11px] font-semibold rounded border transition-colors ${sortByPrice ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/30' : 'bg-[#0d1117] text-gray-400 border-[#30363d] hover:bg-[#21262d]'}`}
+                  >
+                    Najniższa cena ↑
+                  </button>
+                </div>
+              </div>
+
               <div className="max-h-80 overflow-y-auto space-y-2 pr-1 border border-[#30363d] rounded-lg p-3 bg-[#0d1117]">
-                {result.analyzed_offers?.map((offer, idx) => (
+                {getProcessedOffers().map((offer, idx) => (
                   <div key={idx} className="flex justify-between items-center text-xs py-2 border-b border-[#21262d] last:border-0 gap-4 hover:bg-[#161b22]/50 px-1 rounded transition-colors">
                     <div className="flex items-center gap-2 truncate">
                       {getSourceBadge(offer.url)}
