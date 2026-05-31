@@ -2,13 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import Groq from "groq-sdk";
 
-// Inicjalizacja Supabase przy użyciu Twoich zmiennych środowiskowych
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY! // upewnij się, że nazwa pasuje do Twojego .env
+  process.env.SUPABASE_SERVICE_KEY!
 );
 
-// Inicjalizacja Groq z Twojego GitHub Secrets / Vercel Env
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export async function POST(req: Request) {
@@ -16,58 +14,50 @@ export async function POST(req: Request) {
     const { phrase, targetRoi = 30 } = await req.json();
     if (!phrase) return NextResponse.json({ error: "Wpisz czego szukasz!" }, { status: 400 });
 
-    // 1. Wyciągamy z bazy do 80 ogłoszeń pasujących do wpisanej frazy
-    // Zakładam, że Twoja tabela nazywa się 'scraped_offers' (dopasuj nazwę jeśli jest inna)
+    // Wyciągamy dane z widoku lub tabeli ofert dla rynku PL
     const { data: offers, error: dbError } = await supabase
-      .from("scraped_offers")
-      .select("title, price, description, platform")
+      .from("offers")
+      .select("title, price, short_description")
       .ilike("title", `%${phrase}%`)
       .order("created_at", { ascending: false })
       .limit(80);
 
     if (dbError) throw dbError;
     if (!offers || offers.length === 0) {
-      return NextResponse.json({ error: "Brak ofert w bazie danych dla tego przedmiotu." }, { status: 404 });
+      return NextResponse.json({ error: "Brak ofert w polskiej bazie danych dla tej frazy." }, { status: 404 });
     }
 
-    // 2. Budujemy prompt, który zmusi Llamę do odrzucenia padów/akcesoriów i zrobienia matematyki
-    const systemPrompt = `Jesteś zaawansowanym algorytmem analizy statystycznej rynków wtórnych.
-Przeanalizuj listę surowych ogłoszeń znalezionych dla frazy "${phrase}" i stwórz raport cenowy.
+    const systemPrompt = `Jesteś analitykiem polskiego rynku wtórnego elektroniki i przedmiotów używanych.
+Przeanalizuj listę ogłoszeń dla frazy "${phrase}" i przygotuj raport cenowy w walucie PLN.
 
-MUSISZ BEZWZGLĘDNIE:
-1. Rozdzielić akcesoria/części/uszkodzone od GŁÓWNEGO pełnowartościowego produktu (np. jeśli fraza to "PS5", odseparuj pady i gry od konsol).
-2. Wyliczyć REALNĄ średnią wartość rynkową (market_value) dla głównego produktu, ignorując skrajne anomalie cenowe.
-3. Obliczyć sugerowaną maksymalną cenę zakupu (max_buy_price) na podstawie oczekiwanego ROI sprzedawcy wynoszącego ${targetRoi}%.
+Zasady krytyczne:
+1. Odfiltruj akcesoria, pudełka, uszkodzone lub części (np. dla "PS5" odrzuć same pady, gry, kable).
+2. Wyznacz REALNĄ i stabilną wartość rynkową sprawny_produkt (market_value).
+3. Oblicz próg opłacalnego zakupu (max_buy_price) uwzględniając marżę/ROI na poziomie ${targetRoi}%.
 
-Zwróć odpowiedź TYLKO I WYŁĄCZNIE jako czysty obiekt JSON. Nie pisz żadnych wstępów, markdownu ani komentarzy.
-Format wyjściowy JSON:
+Zwróć odpowiedź WYŁĄCZNIE jako surowy obiekt JSON (bez markdownu, bez wstępów).
+Format:
 {
-  "main_product_name": "Oczyszczona nazwa głównego produktu (np. 'PlayStation 5 Slim 1TB')",
-  "estimated_market_value_pln": 1600, 
-  "max_buy_price_pln": 1120, 
-  "sample_size_evaluated": 45,
-  "detected_noise": ["lista 2-3 wykrytych tytułów ogłoszeń, które były tylko akcesoriami i zostały odrzucone z wyceny"],
-  "tips": "Krótka wskazówka na co uważać przy wycenie tego modelu"
+  "main_product_name": "Nazwa produktu",
+  "estimated_market_value_pln": 1500,
+  "max_buy_price_pln": 1050,
+  "sample_size_evaluated": 30,
+  "detected_noise": ["przykład odrzuconego ogłoszenia"],
+  "tips": "Wskazówka po polsku"
 }`;
 
-    // 3. Strzał do Groq API (używamy szybkiego i darmowego modelu llama3-8b)
-    const chatCompletion = await groq.chat.completions.create({
+    const completion = await groq.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Oto surowe dane z bazy:\n${JSON.stringify(offers, null, 2)}` }
+        { role: "user", content: JSON.stringify(offers) }
       ],
       model: "llama3-8b-8192",
-      temperature: 0.1, // Niska temperatura, żeby model nie zmyślał liczb
-      response_format: { type: "json_object" } // Wymuszenie formatu JSON na poziomie Groqa
+      temperature: 0.1,
+      response_format: { type: "json_object" }
     });
 
-    const responseContent = chatCompletion.choices[0]?.message?.content;
-    if (!responseContent) throw new Error("Groq zwrócił pustą odpowiedź");
-
-    return NextResponse.json(JSON.parse(responseContent));
-
+    return NextResponse.json(JSON.parse(completion.choices[0]?.message?.content || "{}"));
   } catch (error: any) {
-    console.error(error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
