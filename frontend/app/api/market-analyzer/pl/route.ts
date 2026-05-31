@@ -18,12 +18,12 @@ export async function POST(req: Request) {
 
     const cleanPhrase = phrase.toLowerCase().trim();
 
-    // 1. Budujemy zapytanie bezpośrednio filtrujące i SORTUJĄCE od najtańszych w bazie danych
+    // 1. Wyciągamy najtańsze oferty z bazy
     let supabaseQuery = supabase
       .from("offers")
       .select("title, price, url")
-      .gt("price", 400) // Odrzucamy śmieci, ogłoszenia typu "zamienię" lub za darmo (poniżej 400 zł)
-      .order("price", { ascending: true }); // KLUCZOWE: Najpierw sortujemy od absolutnie najniższej ceny w CAŁEJ bazie
+      .gt("price", 500) // Ignoruj uszkodzone i gry (poniżej 500zł)
+      .order("price", { ascending: true });
 
     if (cleanPhrase === "ps5" || cleanPhrase === "playstation 5" || cleanPhrase === "playstation5" || cleanPhrase === "konsola ps5") {
       supabaseQuery = supabaseQuery.or(
@@ -41,18 +41,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // Pobieramy 150 ABSOLUTNIE NAJTAŃSZYCH ofert dostępnych w bazie danych
-    const { data: offers, error: dbError } = await supabaseQuery.limit(150);
+    // Limit 60 ofert (Zmniejszony, aby oszczędzać tokeny i nie przekraczać limitów TPD)
+    const { data: offers, error: dbError } = await supabaseQuery.limit(60);
 
     if (dbError) throw dbError;
 
     if (!offers || offers.length === 0) {
-      return NextResponse.json({
-        error: `Nie znaleziono w bazie ofert dla frazy: "${phrase}"`,
-      }, { status: 404 });
+      return NextResponse.json({ error: "Brak ofert." }, { status: 404 });
     }
 
-    // 2. Dodatkowa weryfikacja w JS dla generacji konsol (odsiew PS4 przy szukaniu PS5)
+    // Filtrowanie generacji (odsiew PS4)
     const finalOffersToAnalyze = offers.filter((offer) => {
       if (!offer.title) return false;
       const t = offer.title.toLowerCase();
@@ -62,38 +60,30 @@ export async function POST(req: Request) {
       return true;
     });
 
+    // Skrócony prompt zoptymalizowany pod lekki model i oszczędność tokenów
     const prompt = `
-    Jesteś profesjonalnym rzeczoznawcą rynku e-commerce. Przeanalizuj listę ogłoszeń dla hasła: "${phrase}".
-    Dostałeś listę posortowaną od NAJTAŃSZYCH ofert w bazie danych. Twoim celem jest wyznaczenie realnego dołu rynku.
+    Analyze product offers for: "${phrase}". Return JSON only.
+    
+    CRITICAL RULES:
+    1. "analyzed_offers": MUST include any offer selling the main working console/device, EVEN if it is a bundle with games, extra controllers, or accessories. Titles like "Konsola PS5 PlayStation 5 PAD" or bundles with 15 games MUST be here. Estimate market value for the core device alone.
+    2. "rejected_offers": ONLY pure noise (standalone games, single controllers, boxes, damaged items, or obvious price errors under 1000 PLN).
 
-    BEZWZGLĘDNE ZASADY PODZIAŁU:
-    1. Do "analyzed_offers" MUSISZ wrzucić każdą ofertę, która zawiera sprawną, główną konsolę / urządzenie główne. 
-       - Zestawy z 1 padem, 2 padami, grami, dodatkami (np. podstawki, słuchawki, dyski, a nawet PS Portal) MAJĄ TU ZOSTAĆ.
-       - Tytuły typu "Konsola PS5 PlayStation Pad" czy "PS 5 DIGITAL / GWARANCJA / 15 Gier" ABSOLUTNIE mają być uznane za poprawne oferty konsoli i trafić do "analyzed_offers"!
-       - W wycenie "estimated_market_value_pln" podaj średnią cenę bazową (jeśli zestawy są drogie, odejmij w pamięci wartość dodatków, aby nie zawyżać średniej).
+    Data: ${JSON.stringify(finalOffersToAnalyze)}
 
-    2. Do "rejected_offers" wrzucasz tylko czysty szum: same gry (np. FIFA 25), same akcesoria (pady kupowane osobno, stojaki), puste pudełka lub uszkodzony sprzęt. Odrzucaj też ewidentne błędy cenowe i ogłoszenia archiwalne (jeśli cena to np. 500 zł za sprawną konsolę, odrzuć z powodem "Oferta archiwalna / Błąd").
-
-    Oferty do analizy:
-    ${JSON.stringify(finalOffersToAnalyze, null, 2)}
-
-    Zwróć wynik WYŁĄCZNIE jako czysty, poprawny format JSON (bez markdownu):
+    Format:
     {
-      "main_product_name": "Precyzyjna nazwa produktu rynkowego",
+      "main_product_name": "Product Name",
       "estimated_market_value_pln": 1450,
-      "analyzed_offers": [
-        {"title": "Tytuł oferty", "price": 1600, "url": "url_oferty"}
-      ],
-      "rejected_offers": [
-        {"title": "Tytuł odrzuconej oferty", "reason": "Powód odrzucenia"}
-      ],
-      "tips": "Krótka wskazówka o dole rynku"
+      "analyzed_offers": [{"title": "Title", "price": 1600, "url": "url"}],
+      "rejected_offers": [{"title": "Title", "reason": "Reason"}],
+      "tips": "Brief comment"
     }
     `;
 
+    // ZMIANA MODELU NA LLAMA-3.1-8B-INSTANT (Większy limit dzienny tokenów - 500K)
     const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       temperature: 0.1,
       response_format: { type: "json_object" },
     });
