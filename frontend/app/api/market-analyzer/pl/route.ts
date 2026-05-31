@@ -18,11 +18,10 @@ export async function POST(req: Request) {
 
     const cleanPhrase = phrase.toLowerCase().trim();
 
-    // 1. Pobieramy z bazy 200 najświeższych ofert, żeby mieć pewność, że nowo dodane ogłoszenia tam są
+    // Pobieramy surowe dane BEZ sortowania po kolumnie created_at, żeby nie wywalało błędu
     const { data: allOffers, error: dbError } = await supabase
       .from("offers")
       .select("title, price, url")
-      .order("created_at", { ascending: false }) // Sortujemy od najnowszych
       .limit(200);
 
     if (dbError) throw dbError;
@@ -31,18 +30,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Baza danych ofert jest pusta." }, { status: 404 });
     }
 
-    // 2. STRYKTNE FILTROWANIE W JAVASCRIPT
+    // Filtrowanie w JavaScript (odporne na wielkość liter i kolejność słów)
     const filteredOffers = allOffers.filter((offer) => {
       if (!offer.title) return false;
       const titleLower = offer.title.toLowerCase();
 
       // Specjalny warunek dla PS5 / PlayStation 5
       if (cleanPhrase === "ps5" || cleanPhrase === "playstation 5" || cleanPhrase === "playstation5" || cleanPhrase === "konsola ps5") {
-        // Oferta MUSI zawierać "ps5" LUB "playstation 5" LUB "playstation5", żeby odsiać śmieci z innych generacji (np. PS4)
         return titleLower.includes("ps5") || titleLower.includes("playstation 5") || titleLower.includes("playstation5") || titleLower.includes("play station 5");
       }
 
-      // Dla każdego innego przedmiotu (np. Dyson V15) - tytuł musi zawierać WSZYSTKIE wpisane słowa
+      // Dla każdego innego przedmiotu (np. Dyson V15) - tytuł musi zawierać wszystkie wpisane słowa
       const words = cleanPhrase.split(/\s+/).filter((w: string) => w.length > 1);
       return words.every((word: string) => titleLower.includes(word));
     });
@@ -53,7 +51,7 @@ export async function POST(req: Request) {
       }, { status: 404 });
     }
 
-    // 3. Przekazujemy przefiltrowane, PEWNE oferty konsol do AI (maksymalnie 80 sztuk)
+    // Przekazujemy przefiltrowane oferty do AI (maksymalnie 80 sztuk)
     const finalOffersToAnalyze = filteredOffers.slice(0, 80);
 
     const prompt = `
