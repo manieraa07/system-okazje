@@ -6,7 +6,6 @@ import Link from "next/link";
 interface AnalysisResult {
   main_product_name: string;
   estimated_market_value_pln: number;
-  max_buy_price_pln: number;
   sample_size_evaluated: number;
   detected_noise?: string[];
   tips?: string;
@@ -14,7 +13,6 @@ interface AnalysisResult {
 
 export default function PolishMarketAnalyzerPage() {
   const [phrase, setPhrase] = useState("");
-  const [roi, setRoi] = useState(30);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
@@ -29,7 +27,7 @@ export default function PolishMarketAnalyzerPage() {
       const response = await fetch("/api/market-analyzer/pl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phrase, targetRoi: roi }),
+        body: JSON.stringify({ phrase }),
       });
 
       const data = await response.json();
@@ -53,7 +51,7 @@ export default function PolishMarketAnalyzerPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white tracking-tight">Market Analyzer (PLN)</h1>
-              <p className="text-xs text-gray-400">Analiza cen na polskim rynku przez Groq AI</p>
+              <p className="text-xs text-gray-400">Szybka wycena realnej wartości rynkowej przez Groq AI</p>
             </div>
           </div>
           
@@ -66,35 +64,25 @@ export default function PolishMarketAnalyzerPage() {
         </div>
 
         <form onSubmit={handleAnalyze} className="bg-[#161b22] border border-[#30363d] rounded-xl p-5 mb-6 shadow-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-            <div className="sm:col-span-1">
-              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Przedmiot (PL)</label>
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1 w-full">
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Szukany przedmiot (PL)</label>
               <input
                 type="text"
-                placeholder="np. PS5 Slim, Dyson..."
+                placeholder="np. PS5 Slim, Dyson V15..."
                 value={phrase}
                 onChange={(e) => setPhrase(e.target.value)}
                 className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
                 required
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Marża / ROI %</label>
-              <input
-                type="number"
-                value={roi}
-                onChange={(e) => setRoi(Number(e.target.value))}
-                className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                min="5"
-              />
-            </div>
-            <div>
+            <div className="w-full sm:w-auto">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shadow-lg"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white text-sm font-semibold px-6 py-2 rounded-lg transition-colors shadow-lg whitespace-nowrap"
               >
-                {loading ? "Analizuję..." : "Sprawdź cenę (zł)"}
+                {loading ? "Analizuję rynek..." : "Sprawdź wartość (zł)"}
               </button>
             </div>
           </div>
@@ -105,32 +93,28 @@ export default function PolishMarketAnalyzerPage() {
         {result && (
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-xl">
             <div className="mb-4">
-              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Raport PL</span>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Raport cenowy</span>
               <h2 className="text-lg font-bold text-white mt-2">{result.main_product_name}</h2>
-              <p className="text-[11px] text-gray-400">Wyliczono z {result.sample_size_evaluated} ostatnich ogłoszeń.</p>
+              <p className="text-[11px] text-gray-400">Wycena wyliczona na podstawie {result.sample_size_evaluated} ostatnich ogłoszeń z bazy.</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-              <div className="bg-[#0d1117] border border-[#30363d] p-4 rounded-lg">
-                <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Wartość rynkowa</span>
-                <div className="text-xl font-bold text-white mt-1">{result.estimated_market_value_pln} PLN</div>
-              </div>
-              <div className="bg-[#0d1117] border border-emerald-500/30 p-4 rounded-lg">
-                <span className="text-[11px] font-medium text-emerald-400 uppercase tracking-wider">Max zakup (Próg)</span>
-                <div className="text-xl font-bold text-emerald-400 mt-1">{result.max_buy_price_pln} PLN</div>
+            <div className="mb-5">
+              <div className="bg-[#0d1117] border border-emerald-500/20 p-5 rounded-lg text-center sm:text-left">
+                <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Szacowana wartość rynkowa</span>
+                <div className="text-3xl font-extrabold text-emerald-400 mt-1">{result.estimated_market_value_pln} PLN</div>
               </div>
             </div>
 
             {result.detected_noise && result.detected_noise.length > 0 && (
               <div className="mb-4 bg-[#0d1117] p-3 rounded-lg border border-[#30363d]">
-                <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Odrzucony szum rynkowy:</h4>
+                <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Odrzucone ogłoszenia (szum / akcesoria):</h4>
                 <ul className="list-disc pl-4 text-[11px] text-gray-500 space-y-0.5">
                   {result.detected_noise.map((n, i) => <li key={i}>{n}</li>)}
                 </ul>
               </div>
             )}
 
-            {result.tips && <div className="border-t border-[#30363d] pt-3 text-[11px] text-gray-400"><span className="font-semibold text-gray-300">Wskazówka:</span> {result.tips}</div>}
+            {result.tips && <div className="border-t border-[#30363d] pt-3 text-[11px] text-gray-400"><span className="font-semibold text-gray-300">Wskazówka AI:</span> {result.tips}</div>}
           </div>
         )}
       </div>
